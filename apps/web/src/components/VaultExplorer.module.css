@@ -1,0 +1,35 @@
+.explorer { margin: 24px 0 0; min-width: 0; color: var(--nn-nav-text); }
+.vaultRow { display: flex; gap: 5px; padding: 0 5px; }
+.vaultRow select { min-width: 0; flex: 1; height: 34px; border: 1px solid var(--nn-nav-border); border-radius: 7px; background: var(--nn-nav-card); color: var(--nn-nav-text); padding: 0 8px; font-size: 12px; font-weight: 700; }
+.vaultRow select option, .tools select option { background: var(--nn-nav); color: var(--nn-nav-text); }
+.vaultRow button, .tools button { width: 33px; height: 33px; flex: none; border: 0; border-radius: 7px; display: grid; place-items: center; background: transparent; color: var(--nn-nav-muted); }
+.vaultRow button:hover, .tools button:hover, .root button:hover { background: var(--nn-nav-hover); color: var(--nn-nav-text); }
+.tools { display: flex; align-items: center; gap: 1px; padding: 11px 5px 5px; }
+.tools select { min-width: 0; flex: 1; height: 30px; border: 0; background: transparent; color: var(--nn-nav-muted); font-size: 10px; cursor: pointer; }
+.root { padding: 8px 5px 3px; }
+.root button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--nn-nav-muted); font-size: 11px; font-weight: 700; text-align: left; }
+.root .rootSelected { background: var(--nn-nav-active); color: var(--nn-nav-text); }
+.tree { min-height: 100px; padding: 0 5px 20px; }
+.row { width: 100%; min-height: 31px; display: flex; align-items: center; gap: 6px; border: 0; border-radius: 5px; background: transparent; color: var(--nn-nav-muted); text-align: left; font-size: 11px; }
+.row:hover, .row.selected { background: var(--nn-nav-hover); color: var(--nn-nav-text); }
+.row:focus-visible { outline: 2px solid var(--nn-focus); outline-offset: -2px; }
+.row > svg { flex: none; }
+.row > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spacer { width: 13px; flex: none; }
+.empty { padding: 12px; margin: 0; color: var(--nn-nav-muted); font-size: 11px; line-height: 1.5; }
+.form { display: grid; gap: 10px; margin-top: 18px; }
+.form label { font-size: 12px; font-weight: 700; color: var(--nn-text-soft); }
+.form input, .form select { min-height: 40px; width: 100%; border: 1px solid var(--nn-border); border-radius: 7px; padding: 0 10px; background: var(--nn-surface); color: var(--nn-text); }
+.formActions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 14px; }
+.renameOptions { display: grid; gap: 8px; margin: 12px 0; padding: 10px; border: 1px solid var(--nn-border); border-radius: 8px; }
+.renameOptions legend { color: var(--nn-text-soft); font-size: 12px; font-weight: 700; }
+.renameOptions label { display: flex; gap: 7px; align-items: center; font-size: 12px; }
+.renameOptions small { color: var(--nn-text-muted); line-height: 1.4; }
+.renamePreview { max-height: 170px; overflow: auto; padding: 10px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface-tint); font-size: 12px; }
+.renamePreview ul { margin: 6px 0; padding-left: 20px; }
+.renamePreview li { margin: 8px 0; overflow-wrap: anywhere; }
+.renamePreview del, .renamePreview ins { display: block; margin-top: 3px; white-space: pre-wrap; }
+.renamePreview del { color: var(--nn-danger); }
+.renamePreview ins { color: var(--nn-accent); text-decoration: none; }
+.renamePreview p { margin: 6px 0 0; color: var(--nn-text-muted); }
+.renameError { margin: 4px 0; color: var(--nn-danger); font-size: 12px; }

@@ -1,0 +1,7 @@
+[build]
+  command = "pnpm --filter @noor-note/web build"
+  publish = "apps/web/out"
+
+[build.environment]
+  NODE_VERSION = "24"
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"

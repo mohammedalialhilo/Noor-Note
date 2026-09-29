@@ -1,0 +1,38 @@
+.backdrop { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 55%); color: var(--nn-text); }
+.panel { display: flex; flex-direction: column; width: min(1180px, 100%); height: min(850px, 100%); overflow: hidden; border: 1px solid var(--nn-border); border-radius: 14px; background: var(--nn-surface); box-shadow: var(--nn-elevation); }
+.header { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding: 18px 22px; border-bottom: 1px solid var(--nn-border); }
+.header h2 { margin: 2px 0; font-size: 23px; }
+.header p { margin: 0; color: var(--nn-text-muted); font-size: 13px; }
+.eyebrow { color: var(--nn-accent); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.header button, .actions button, .savedPages button, .save { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 11px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-surface); color: var(--nn-text); font: inherit; cursor: pointer; }
+.header button:disabled, .actions button:disabled, .save:disabled { opacity: .5; cursor: default; }
+.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .9fr); min-height: 0; flex: 1; }
+.source, .results { min-width: 0; overflow: auto; padding: 20px 22px; }
+.source { border-right: 1px solid var(--nn-border); }
+.source h3, .results h3 { margin: 0 0 12px; font-size: 16px; }
+.upload { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--nn-border); border-radius: 7px; cursor: pointer; }
+.upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.upload:focus-within { outline: 2px solid var(--nn-accent); outline-offset: 2px; }
+.filename { display: block; margin: 15px 0 8px; overflow-wrap: anywhere; }
+.pageControls { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+.pageControls input { width: 65px; padding: 5px; border: 1px solid var(--nn-border); border-radius: 5px; background: var(--nn-surface); color: var(--nn-text); }
+.preview { min-height: 180px; max-height: 560px; overflow: auto; border: 1px solid var(--nn-border); border-radius: 8px; padding: 10px; background: var(--nn-bg); }
+.image { max-width: 100%; width: auto; height: auto; }
+.help { color: var(--nn-text-muted); font-size: 13px; line-height: 1.45; }
+.languages { display: flex; flex-wrap: wrap; gap: 8px 15px; margin: 15px 0; padding: 10px; border: 1px solid var(--nn-border); border-radius: 7px; }
+.languages legend { font-size: 13px; font-weight: 700; }
+.languages label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.actions button:first-child, .save { background: var(--nn-accent); border-color: var(--nn-accent); color: white; }
+.textLabel { display: grid; gap: 8px; margin-top: 20px; font-weight: 700; font-size: 13px; }
+.textLabel textarea { min-height: 260px; width: 100%; resize: vertical; padding: 12px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-bg); color: var(--nn-text); font: inherit; line-height: 1.5; }
+.detected { margin-top: 10px; font-size: 13px; }
+.detected summary { cursor: pointer; }
+.detected pre { max-height: 160px; overflow: auto; white-space: pre-wrap; padding: 10px; border: 1px solid var(--nn-border); border-radius: 6px; background: var(--nn-bg); font: inherit; }
+.savedPages { margin: 18px 0; }
+.savedPages > div { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+.savedPages button[aria-current='page'] { border-color: var(--nn-accent); background: var(--nn-accent-subtle); }
+.save { margin-top: 12px; }
+.error { color: var(--nn-danger); }
+.message { color: var(--nn-accent); }
+@media (max-width: 750px) { .backdrop { padding: 0; } .panel { height: 100dvh; border-radius: 0; } .body { display: block; } .source { border-right: 0; border-bottom: 1px solid var(--nn-border); max-height: 42vh; } .preview { max-height: 23vh; } .textLabel textarea { min-height: 180px; } }

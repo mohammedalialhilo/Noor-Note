@@ -1,0 +1,15 @@
+.reading { min-width: 0; }
+.reading :global(.katex-display) { overflow-x: auto; overflow-y: hidden; }
+.reading :global(pre code) { display: block; font-size: 12px; }
+.reading :global(mark) { background: var(--nn-gold-wash); color: var(--nn-text); border-radius: 2px; padding: 1px 2px; }
+.reading :global(.hljs-keyword), .reading :global(.hljs-selector-tag), .reading :global(.hljs-built_in) { color: var(--nn-accent); }
+.reading :global(.hljs-string), .reading :global(.hljs-attr), .reading :global(.hljs-title) { color: var(--nn-gold-muted); }
+.reading :global(.hljs-comment), .reading :global(.hljs-quote) { color: var(--nn-text-muted); }
+.reading :global(blockquote:has(strong:first-child)) { border-left-color: var(--nn-accent); background: var(--nn-surface-tint); border-radius: 0 6px 6px 0; padding: 6px 14px; }
+.wiki { display: inline; padding: 0; border: 0; background: transparent; color: var(--nn-accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit; }
+.unresolved { color: var(--nn-text-muted); border-bottom: 1px dashed var(--nn-border-strong); }
+.unresolvedButton { display: inline; padding: 0; border: 0; border-bottom: 1px dashed var(--nn-border-strong); background: transparent; color: var(--nn-text-muted); cursor: pointer; font: inherit; }
+.unresolvedButton span { font-size: .8em; }
+.embedFallback { color: var(--nn-text-muted); font-style: italic; }
+.diagram { max-width: 100%; height: auto; object-fit: contain; }
+.diagramError { white-space: pre-wrap; }

@@ -1,0 +1,51 @@
+.backdrop { position: fixed; inset: 0; z-index: 1000; background: var(--nn-bg); color: var(--nn-text); }
+.reader { display: flex; flex-direction: column; width: 100%; height: 100dvh; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; padding: 7px 14px; border-bottom: 1px solid var(--nn-border); background: var(--nn-surface); }
+.header > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 24vw; }
+.toolbar, .actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.toolbar button, .actions button, .search button, .section > button, .annotationEdit button, .missing button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; font: inherit; }
+.toolbar button:hover, .actions button:hover, .search button:hover, .section > button:hover { background: var(--nn-accent-subtle); }
+.toolbar button[aria-pressed='true'] { background: var(--nn-accent-subtle); border-color: var(--nn-accent); }
+.toolbar button:disabled, .actions button:disabled { opacity: .5; cursor: default; }
+.pageField { display: flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 13px; }
+.pageField input { width: 55px; padding: 5px; border: 1px solid var(--nn-border); border-radius: 5px; background: var(--nn-surface); color: var(--nn-text); }
+.body { display: grid; grid-template-columns: auto minmax(0, 1fr) 310px; flex: 1; min-height: 0; }
+.thumbnails { width: 130px; overflow: auto; border-right: 1px solid var(--nn-border); padding: 12px; background: var(--nn-surface); }
+.thumbnail { display: grid; justify-items: center; gap: 3px; width: 108px; min-height: 120px; margin-bottom: 10px; padding: 5px; border: 1px solid var(--nn-border); border-radius: 6px; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; }
+.thumbnail canvas { max-width: 96px; max-height: 130px; background: white; box-shadow: 0 2px 8px rgb(0 0 0 / 15%); }
+.thumbnailActive { border-color: var(--nn-accent); background: var(--nn-accent-subtle); }
+.pageHost { display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px; background: var(--nn-bg); }
+.page { position: relative; flex: none; background: white; box-shadow: 0 4px 20px rgb(0 0 0 / 18%); }
+.page canvas { display: block; }
+.textLayer { position: absolute; inset: 0; overflow: clip; line-height: 1; text-align: initial; letter-spacing: normal; word-spacing: normal; text-size-adjust: none; transform-origin: 0 0; forced-color-adjust: none; color-scheme: only light; --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
+.textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0 0; user-select: text; }
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) { --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height)); --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+.textLayer ::selection { background: color-mix(in srgb, var(--nn-accent) 35%, transparent); }
+.highlights { position: absolute; inset: 0; pointer-events: none; }
+.highlight { position: absolute; background: rgb(245 204 42 / 38%); border-radius: 2px; }
+.highlight[data-color='green'] { background: rgb(63 190 110 / 38%); }
+.highlight[data-color='blue'] { background: rgb(66 147 239 / 38%); }
+.highlight[data-color='pink'] { background: rgb(238 94 174 / 38%); }
+.activeHighlight { outline: 2px solid var(--nn-accent); }
+.pageError { position: absolute; inset: 20px auto auto 20px; padding: 10px; background: var(--nn-danger-subtle); color: var(--nn-danger); }
+.loading { margin: auto; }
+.inspector { overflow: auto; border-left: 1px solid var(--nn-border); padding: 14px; background: var(--nn-surface); }
+.search { display: grid; gap: 7px; padding-bottom: 12px; border-bottom: 1px solid var(--nn-border); }
+.search label, .section label { display: grid; gap: 5px; font-size: 13px; font-weight: 600; }
+.search input, .section textarea, .section select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--nn-border); border-radius: 6px; background: var(--nn-surface); color: var(--nn-text); font: inherit; }
+.section textarea { min-height: 70px; resize: vertical; }
+.searchHits { max-height: 150px; overflow: auto; }
+.searchHits button, .annotationItem, .backlink { display: grid; gap: 4px; width: 100%; padding: 8px; border: 0; border-bottom: 1px solid var(--nn-border); background: transparent; color: var(--nn-text); text-align: left; cursor: pointer; }
+.searchHits span, .annotationItem span, .backlink span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--nn-text-muted); font-size: 12px; }
+.section { display: grid; gap: 9px; padding: 14px 0; border-bottom: 1px solid var(--nn-border); }
+.section h2 { margin: 0; font-size: 15px; }
+.section h3 { margin: 0; font-size: 13px; }
+.section blockquote { margin: 0; padding: 8px; border-left: 3px solid var(--nn-accent); background: var(--nn-bg); max-height: 120px; overflow: auto; white-space: pre-wrap; font-size: 13px; }
+.subtle { color: var(--nn-text-muted); font-size: 13px; }
+.annotationActive { background: var(--nn-accent-subtle); }
+.annotationEdit { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--nn-border); border-radius: 7px; }
+.error { color: var(--nn-danger); }
+.message { color: var(--nn-accent); }
+.missing { margin: 20vh auto; max-width: 400px; padding: 24px; background: var(--nn-surface); border-radius: 10px; }
+@media (max-width: 960px) { .header { align-items: flex-start; flex-direction: column; } .header > strong { max-width: 100%; } .toolbar { width: 100%; } .body { grid-template-columns: auto minmax(0, 1fr); } .inspector { grid-column: 1 / -1; grid-row: 2; max-height: 34vh; border-top: 1px solid var(--nn-border); } .pageHost { min-height: 35vh; } }
+@media (max-width: 600px) { .body { grid-template-columns: minmax(0, 1fr); } .thumbnails { position: absolute; z-index: 2; width: 130px; max-height: 45vh; box-shadow: var(--nn-elevation); } .pageHost { grid-column: 1; } .toolbar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; } .toolbar button { flex: none; } }

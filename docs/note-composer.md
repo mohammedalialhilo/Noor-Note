@@ -1,0 +1,11 @@
+# Note composer and refactoring
+
+Open **Note actions → Compose and refactor**, or use the command palette to start a specific action. Select text in Source mode before opening a selection action. The composer loads current note bodies only when you request a preview. It displays every new note and every changed note, with before and after Markdown and reference warnings. **Apply changes** appears only after a successful preview.
+
+Supported actions are merge notes, split by heading level, extract a selection, extract or move a heading, duplicate a heading, copy selection blocks to Canvas text cards, and create a linked index note. Merge leaves a small source note linking to the destination. Split, extract heading, and move heading leave heading stubs in the source. This helps existing links and readers find moved content. Selection extraction replaces the source selection with a link to the new note. Canvas conversion copies Markdown; it leaves the source unchanged.
+
+The pure planner in `packages/core/src/note-refactor.ts` generates collision-free paths and ID-annotated Markdown links. It scans wiki links, local Markdown links, heading references, block references, and embeds; it retargets incoming references to moved headings and block IDs when it can identify a unique destination. Moved Markdown links are rebased to their new note path. Unresolved links, duplicate anchors, and relative attachments produce warnings. Unknown or ambiguous references can still need manual repair. Duplicate heading removes block IDs from the copy so references continue to point to the original.
+
+`VaultRepository.applyNoteRefactor` checks all active note revisions and source bodies against the preview. It creates notes and writes edited bodies and revision checkpoints in one IndexedDB transaction. A changed vault rejects the entire preview, which the user must refresh. Canvas creation is a separate single-object write and checks the source note revision. The composer never evaluates note content as code.
+
+Current limitations: attachment references are warned about but not rewritten; duplicate heading names can make external readable links ambiguous; copied Canvas cards are independent text rather than live note blocks. Very large vault previews load all note bodies and may take time. Cross-vault refactoring is unavailable.

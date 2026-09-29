@@ -1,0 +1,22 @@
+{
+  "name": "noor-note",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --filter @noor-note/web dev",
+    "lint": "corepack pnpm --filter @noor-note/web lint && corepack pnpm exec eslint packages",
+    "typecheck": "corepack pnpm -r --if-present typecheck",
+    "test": "corepack pnpm -r --if-present test",
+    "build": "corepack pnpm -r --if-present build"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1"
+  }
+}

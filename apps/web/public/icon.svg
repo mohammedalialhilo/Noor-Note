@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Noor Note">
+  <rect width="192" height="192" rx="42" fill="#18382f"/>
+  <rect x="36" y="36" width="120" height="120" rx="25" fill="#f5c979" transform="rotate(-6 96 96)"/>
+  <circle cx="96" cy="96" r="17" fill="#18382f"/>
+  <path d="M96 52v17M96 123v17M52 96h17M123 96h17" stroke="#18382f" stroke-width="9" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,23 @@
+.dialog { width: min(94vw, 680px); max-height: 88vh; overflow-y: auto; }
+.content { display: grid; gap: 16px; }
+.controls, .section { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--nn-border); border-radius: 10px; background: var(--nn-surface); }
+.state { font-weight: 600; color: var(--nn-text); }
+.buttons, .footer { display: flex; gap: 8px; flex-wrap: wrap; }
+.section h3 { margin: 0; font-size: 15px; }
+.section label, .rename label, .attach label { display: grid; gap: 5px; min-width: 0; font-size: 13px; font-weight: 600; }
+.section input, .section select { width: 100%; padding: 8px 10px; border: 1px solid var(--nn-border); border-radius: 7px; color: var(--nn-text); background: var(--nn-surface); font: inherit; }
+.section audio { width: 100%; }
+.content button { width: fit-content; padding: 8px 12px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-accent); color: var(--nn-accent-contrast); font: inherit; cursor: pointer; }
+.content button:disabled { opacity: .55; cursor: default; }
+.rename, .attach { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.renamePreview { padding: 10px; border: 1px solid var(--nn-border); border-radius: 8px; font-size: 13px; }
+.renamePreview p { margin: 6px 0; }
+.renamePreview summary { cursor: pointer; }
+.diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.diff pre { min-width: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--nn-bg); padding: 8px; }
+.meta { margin: 0; color: var(--nn-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.error { margin: 0; color: var(--nn-danger); }
+.message { margin: 0; color: var(--nn-accent); }
+.footer { justify-content: flex-end; }
+.footer button { background: var(--nn-surface); color: var(--nn-text); }
+@media (max-width: 560px) { .rename, .attach, .diff { grid-template-columns: 1fr; } }

@@ -1,0 +1,40 @@
+.dialog { width: min(1120px, calc(100vw - 2rem)); max-width: none; max-height: min(90vh, 900px); display: flex; flex-direction: column; }
+.shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 400px; max-height: calc(90vh - 120px); border: 1px solid var(--nn-border); border-radius: 12px; overflow: hidden; }
+.timeline { overflow: auto; padding: .65rem; border-right: 1px solid var(--nn-border); background: var(--nn-surface-soft); }
+.revision { display: flex; flex-direction: column; gap: .2rem; width: 100%; padding: .75rem; margin-bottom: .25rem; text-align: left; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--nn-text); cursor: pointer; }
+.revision:hover, .revision:focus-visible { background: var(--nn-accent-subtle); }
+.selected { border-color: var(--nn-accent); background: var(--nn-accent-subtle); }
+.revision strong { font-size: .85rem; }
+.revision span, .revision small, .empty { font-size: .75rem; color: var(--nn-text-muted); }
+.main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: .65rem .8rem; border-bottom: 1px solid var(--nn-border); }
+.toolbar label { display: flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--nn-text-muted); }
+.toolbar select, .segment button, .actions button { border: 1px solid var(--nn-border); border-radius: 6px; background: var(--nn-surface); color: var(--nn-text); padding: .4rem .6rem; font: inherit; cursor: pointer; }
+.segment { display: flex; gap: .2rem; }
+.segment button[aria-pressed="true"] { border-color: var(--nn-accent); color: var(--nn-accent); background: var(--nn-accent-subtle); }
+.content { flex: 1; min-height: 0; overflow: auto; padding: .8rem; }
+.content h3 { margin: .2rem 0 .5rem; font-size: .9rem; }
+.path, .summary, .legacy { margin: .25rem 0 .75rem; color: var(--nn-text-muted); font-size: .8rem; }
+.preview { white-space: pre-wrap; overflow-wrap: anywhere; font: .82rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.metadata { margin: 0 0 1rem; }
+.metadataGrid { border: 1px solid var(--nn-border); border-radius: 7px; overflow: hidden; }
+.metadataRow { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr) minmax(0, 2fr); gap: .5rem; padding: .35rem .5rem; border-top: 1px solid var(--nn-border); font-size: .75rem; overflow-wrap: anywhere; }
+.metadataRow:first-child { border-top: 0; }
+.diff, .sideBySide { border: 1px solid var(--nn-border); border-radius: 7px; overflow-x: auto; font: .76rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diffHeader { padding: .4rem .6rem; background: var(--nn-surface-soft); color: var(--nn-text-muted); font: .75rem/1.5 inherit; border-bottom: 1px solid var(--nn-border); }
+.diffLine { display: flex; min-width: max-content; }
+.diffLine code, .sideCell code { white-space: pre; font: inherit; }
+.lineNumber, .marker { width: 2.3rem; flex: none; padding: 0 .25rem; text-align: right; color: var(--nn-text-muted); user-select: none; }
+.marker { width: 1.3rem; text-align: center; }
+.added { background: var(--nn-accent-subtle); }
+.removed { background: var(--nn-danger-subtle); }
+.sideBySide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.sideRow { display: contents; }
+.sideCell { display: flex; min-width: max-content; gap: .5rem; padding-right: .6rem; border-bottom: 1px solid var(--nn-border); }
+.sideCell:nth-child(odd) { border-right: 1px solid var(--nn-border); }
+.sideCell span { width: 2.5rem; flex: none; text-align: right; color: var(--nn-text-muted); user-select: none; }
+.actions { display: flex; justify-content: flex-end; gap: .5rem; padding: .75rem; border-top: 1px solid var(--nn-border); }
+.actions .primary { background: var(--nn-accent); color: var(--nn-accent-contrast); border-color: var(--nn-accent); }
+.actions button:disabled { opacity: .5; cursor: wait; }
+.error { margin: .5rem .75rem; color: var(--nn-danger); font-size: .8rem; }
+@media (max-width: 700px) { .dialog { width: calc(100vw - 1rem); max-height: 95vh; padding: 1rem; } .shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); max-height: calc(95vh - 110px); } .timeline { display: flex; gap: .35rem; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--nn-border); } .revision { min-width: 150px; } .metadataRow { grid-template-columns: 1fr 1fr; } .metadataRow strong { grid-column: 1 / -1; } }

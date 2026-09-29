@@ -1,0 +1,104 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--nn-bg, var(--cream, #f8f9f5));
+  color: var(--nn-text, var(--ink, #263b37));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.globalBody {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+.panel {
+  width: min(100%, 460px);
+  padding: clamp(28px, 5vw, 44px);
+  border: 1px solid var(--nn-border, var(--line, #e6ebe5));
+  border-radius: 16px;
+  background: var(--nn-surface, #fff);
+  box-shadow: var(--nn-shadow, 0 18px 60px rgb(0 0 0 / 8%));
+  text-align: left;
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--nn-danger, #9c4e41);
+  background: var(--nn-danger-subtle, #fff2ee);
+}
+
+.eyebrow {
+  margin: 28px 0 9px;
+  color: var(--nn-accent, var(--green, #2c7664));
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.panel h1 {
+  margin: 0;
+  color: var(--nn-text, var(--ink, #263b37));
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(28px, 5vw, 36px);
+  line-height: 1.15;
+}
+
+.message {
+  margin: 16px 0 0;
+  color: var(--nn-text-muted, var(--ink-soft, #40544d));
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.primary,
+.secondary {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary {
+  border: 1px solid var(--nn-accent, var(--green, #2c7664));
+  color: var(--nn-accent-contrast, #fff);
+  background: var(--nn-accent, var(--green, #2c7664));
+}
+
+.secondary {
+  border: 1px solid var(--nn-border, var(--line, #e6ebe5));
+  color: var(--nn-text, var(--ink, #263b37));
+  background: var(--nn-surface, #fff);
+}
+
+.primary:hover { filter: brightness(.94); }
+.secondary:hover { background: var(--nn-accent-subtle, #eef4ed); }
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 3px solid var(--nn-focus, #d3a852);
+  outline-offset: 3px;
+}
+
+@media (max-width: 390px) {
+  .actions { align-items: stretch; flex-direction: column; }
+}

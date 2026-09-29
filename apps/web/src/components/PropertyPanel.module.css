@@ -1,0 +1,22 @@
+.panel { margin: 0 19px; padding: 21px 0 24px; border-bottom: 1px solid var(--nn-border); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.heading h3 { margin: 0; font-size: 11px; font-weight: 800; }
+.heading h3 span { color: var(--nn-text-muted); }
+.panel button { border: 1px solid var(--nn-border); border-radius: 5px; background: var(--nn-surface); color: var(--nn-accent); cursor: pointer; font: inherit; font-size: 10px; padding: 5px 7px; }
+.panel button:disabled { opacity: .5; cursor: not-allowed; }
+.panel button:hover:not(:disabled), .panel button:focus-visible { background: var(--nn-surface-hover); }
+.schemaHint, .empty { color: var(--nn-text-muted); font-size: 11px; line-height: 1.5; }
+.error { color: var(--nn-danger); font-size: 11px; line-height: 1.5; }
+.apply { margin-top: 9px; }
+.list { margin: 12px 0 0; }
+.row { display: grid; grid-template-columns: minmax(72px, .8fr) minmax(0, 1fr); gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--nn-border-soft); font-size: 11px; }
+.row dt { color: var(--nn-text-soft); font-weight: 700; overflow-wrap: anywhere; }
+.row dt small { display: block; color: var(--nn-text-muted); font-size: 9px; font-weight: 400; }
+.row dd { margin: 0; color: var(--nn-text); overflow-wrap: anywhere; }
+.rowActions { grid-column: 2; display: flex; gap: 5px; flex-wrap: wrap; }
+.rowActions small { color: var(--nn-text-muted); font-size: 10px; }
+.form { display: grid; gap: 10px; margin-top: 12px; padding: 11px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-surface-tint); }
+.form h4 { margin: 0; font-size: 12px; }
+.form label { display: grid; gap: 4px; color: var(--nn-text-soft); font-size: 10px; }
+.form input, .form select { width: 100%; min-width: 0; min-height: 32px; padding: 4px 6px; border: 1px solid var(--nn-border); border-radius: 5px; background: var(--nn-surface); color: var(--nn-text); font: inherit; font-size: 11px; }
+.actions { display: flex; justify-content: flex-end; gap: 6px; }

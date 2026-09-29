@@ -1,0 +1,9 @@
+.root { position: relative; min-height: 420px; color: var(--nn-text-soft); }
+.root :global(.markdown-editor), .root :global(.cm-editor), .root :global(.cm-scroller), .root :global(.cm-content) { font: inherit; }
+.focus :global(.cm-line) { opacity: .4; transition: opacity .15s ease; }
+.focus :global(.cm-activeLine) { opacity: 1; }
+.selection { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-surface); box-shadow: 0 5px 15px var(--nn-shadow-soft); }
+.selection button, .slash button { border: 0; border-radius: 5px; background: transparent; color: var(--nn-text-soft); padding: 6px 9px; font-size: 11px; text-align: left; }
+.selection button:hover, .selection button:focus-visible, .slash button:hover, .slash button:focus-visible, .slash button[aria-selected=true] { background: var(--nn-surface-hover); color: var(--nn-accent); }
+.slash { position: absolute; z-index: 4; top: 45px; left: 18px; display: grid; width: min(240px, calc(100% - 36px)); max-height: 260px; overflow-y: auto; padding: 5px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); box-shadow: 0 14px 28px var(--nn-shadow); }
+.slash small { display: block; margin-top: 2px; color: var(--nn-text-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

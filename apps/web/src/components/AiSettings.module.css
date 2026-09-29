@@ -1,0 +1,10 @@
+.card { padding: 27px 29px; margin: 0 0 16px; border: 1px solid var(--nn-border); border-radius: 12px; background: var(--nn-surface-soft); color: var(--nn-text); }
+.heading { margin-bottom: 20px; }.heading h2 { margin: 0 0 6px; font-family: Georgia, 'Times New Roman', serif; font-size: 21px; }.heading p, .notice { margin: 0; color: var(--nn-text-muted); font-size: 12px; line-height: 1.5; }
+.mode { display: grid; gap: 7px; max-width: 340px; font-size: 13px; font-weight: 600; }.mode select { min-height: 40px; padding: 0 10px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-surface); color: var(--nn-text); }
+.scopes { margin: 20px 0; padding: 0; border: 0; display: grid; gap: 12px; }.scopes legend { margin-bottom: 10px; font-size: 13px; font-weight: 600; }.scopes:disabled { opacity: .64; }
+.scope { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }.scope input { margin-top: 3px; accent-color: var(--nn-accent); }.scope span { display: grid; gap: 3px; }.scope strong { font-size: 12px; }.scope small { color: var(--nn-text-muted); font-size: 11px; line-height: 1.4; }
+.notice { padding: 11px 13px; border-radius: 7px; background: var(--nn-accent-soft); }
+.provider { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 17px; font-size: 12px; }.provider span { color: var(--nn-text-muted); }
+.error { color: var(--nn-danger); font-size: 12px; }
+.card :is(select, input):focus-visible { outline: 2px solid var(--nn-focus); outline-offset: 2px; }
+@media (max-width: 640px) { .card { padding: 23px 19px; } }

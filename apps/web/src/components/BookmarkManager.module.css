@@ -1,0 +1,22 @@
+.dialog { width: min(1000px, calc(100vw - 24px)); max-height: min(88dvh, 960px); overflow-y: auto; }
+.columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 22px; margin-top: 16px; }
+.column { display: grid; align-content: start; gap: 14px; min-width: 0; }
+.column section, .form { min-width: 0; padding: 12px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface-soft); }
+.column h3, .form h3 { margin: 0 0 9px; font-size: 13px; }
+.column p { margin: 4px 0; color: var(--nn-text-muted); font-size: 12px; }
+.noteRow, .bookmarkRow { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 2px 0; }
+.noteRow > button:first-child, .bookmarkRow > button:first-child { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.noteRow button, .bookmarkRow button, .listButton, .rename button { min-height: 30px; border: 0; border-radius: 5px; background: transparent; color: var(--nn-text); cursor: pointer; font-size: 12px; }
+.noteRow button:hover, .bookmarkRow button:hover, .listButton:hover { background: var(--nn-accent-soft); }
+.noteRow button[aria-pressed='true'] { color: var(--nn-accent-ink); }
+.bookmarkRow > button:first-child, .listButton { display: flex; align-items: center; gap: 6px; }
+.bookmarkRow small { color: var(--nn-text-muted); font-size: 10px; }
+.bookmarkRow select { max-width: 95px; min-height: 28px; }
+.listButton { width: 100%; text-align: left; }
+.form { display: grid; gap: 9px; }
+.form label { display: grid; gap: 4px; color: var(--nn-text-soft); font-size: 12px; }
+.form input, .form select, .rename input { width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--nn-border); border-radius: 5px; background: var(--nn-surface); color: var(--nn-text); }
+.form > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; border: 0; border-radius: 5px; background: var(--nn-accent-solid); color: var(--nn-on-accent); cursor: pointer; }
+.rename { display: flex; gap: 5px; padding-left: 16px; }.rename input { max-width: 220px; }
+.error { color: var(--nn-danger); }.message { color: var(--nn-accent-ink); }.error, .message { font-size: 12px; }
+@media (max-width: 720px) { .columns { grid-template-columns: 1fr; }.bookmarkRow { flex-wrap: wrap; } }

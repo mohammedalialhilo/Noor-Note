@@ -1,0 +1,19 @@
+.dialog { width: min(630px, calc(100vw - 28px)); }
+.input { width: 100%; min-height: 44px; padding: 0 13px; margin-top: 14px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); color: var(--nn-text); font: inherit; }
+.results { max-height: min(52vh, 420px); overflow: auto; margin-top: 12px; border: 1px solid var(--nn-border); border-radius: 9px; }
+.caption { margin: 0; padding: 10px 14px 5px; font-size: 10px; font-weight: 800; color: var(--nn-text-faint); letter-spacing: 1px; }
+.row { display: flex; align-items: center; min-height: 54px; border-bottom: 1px solid var(--nn-border-soft); }
+.row:last-child { border-bottom: 0; }
+.row.active, .create.active { background: var(--nn-surface-hover); }
+.main { flex: 1; display: flex; align-items: center; gap: 11px; min-width: 0; border: 0; background: transparent; color: var(--nn-text); text-align: left; padding: 8px 13px; }
+.main svg, .create svg { flex: none; color: var(--nn-accent); }
+.main span { min-width: 0; display: grid; gap: 3px; }
+.main strong, .main small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.main strong { font-size: 13px; }.main small { color: var(--nn-text-muted); font-size: 11px; }
+.actions { flex: none; display: flex; gap: 2px; padding-right: 8px; }
+.actions button { display: grid; place-items: center; width: 34px; height: 34px; border: 0; background: transparent; color: var(--nn-text-muted); border-radius: 6px; }
+.actions button:hover { color: var(--nn-accent); background: var(--nn-accent-soft); }
+.create { width: 100%; display: flex; align-items: center; gap: 11px; padding: 12px 13px; border: 0; background: transparent; color: var(--nn-text); text-align: left; font-size: 13px; }
+.empty { padding: 18px 13px; color: var(--nn-text-muted); font-size: 12px; }
+.hint { margin: 12px 0 0; color: var(--nn-text-muted); font-size: 11px; }
+.error { color: var(--nn-danger); font-size: 12px; }

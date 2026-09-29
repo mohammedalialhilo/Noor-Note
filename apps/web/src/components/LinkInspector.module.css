@@ -1,0 +1,17 @@
+.inspector { display: grid; gap: 18px; }
+.inspector section { border-top: 1px solid var(--nn-border); padding-top: 12px; }
+.inspector h3 { display: flex; gap: 7px; align-items: center; margin: 0 0 8px; font-size: 12px; }
+.inspector h3 span { color: var(--nn-text-muted); }
+.inspector ul { list-style: none; padding: 0; margin: 0; }
+.row { padding: 9px 0; border-bottom: 1px solid var(--nn-border-soft); overflow-wrap: anywhere; }
+.rowTop { display: flex; justify-content: space-between; gap: 6px; align-items: start; }
+.row button { border: 0; background: transparent; padding: 0; color: var(--nn-accent); text-align: left; font: inherit; cursor: pointer; }
+.rowTop button { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; }
+.row small, .context { display: block; color: var(--nn-text-muted); font-size: 10px; }
+.row p { margin: 5px 0; color: var(--nn-text-soft); font-size: 11px; line-height: 1.45; }
+.row strong { font-size: 11px; }
+.actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.actions button, .row .smallAction { padding: 4px 6px; border: 1px solid var(--nn-border); border-radius: 5px; font-size: 10px; }
+.row button:hover, .row button:focus-visible { text-decoration: underline; }
+.empty { color: var(--nn-text-muted); font-size: 11px; line-height: 1.5; }
+.error { color: var(--nn-danger); font-size: 11px; }

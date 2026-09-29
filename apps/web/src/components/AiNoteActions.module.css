@@ -1,0 +1,19 @@
+.dialog { width: min(760px, calc(100vw - 32px)); max-height: min(88vh, 900px); overflow: auto; }
+.form { display: grid; gap: 16px; color: var(--nn-text); }
+.form label { display: grid; gap: 6px; font-weight: 600; }
+.form select, .form input, .form textarea { width: 100%; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); color: var(--nn-text); padding: 10px 12px; font: inherit; }
+.form textarea { resize: vertical; min-height: 160px; font-family: ui-monospace, Consolas, monospace; }
+.form :is(button, select, input, textarea):focus-visible { outline: 2px solid var(--nn-accent); outline-offset: 2px; }
+.hint { margin: 0; color: var(--nn-text-muted); line-height: 1.5; }
+.review, .result { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--nn-border); border-radius: 12px; background: var(--nn-surface-tint); }
+.review h3, .result h3 { margin: 0; }
+.review dl { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px 12px; margin: 0; overflow-wrap: anywhere; }
+.review dt { font-weight: 700; }.review dd { margin: 0; }
+.review pre, .result pre { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); }
+.diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.buttons button { border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); color: var(--nn-text); padding: 9px 13px; cursor: pointer; }
+.buttons button:last-child { background: var(--nn-accent-solid); color: var(--nn-on-accent); border-color: var(--nn-accent-solid); }
+.buttons button:disabled { opacity: .5; cursor: not-allowed; }
+.error { color: var(--nn-danger); margin: 0; }.success { margin: 0; color: var(--nn-text); }
+@media (max-width: 640px) { .diff { grid-template-columns: 1fr; }.review dl { grid-template-columns: 1fr; }.buttons { justify-content: stretch; }.buttons button { flex: 1 1 auto; } }

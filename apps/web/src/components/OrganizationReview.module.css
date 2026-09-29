@@ -1,0 +1,41 @@
+.root { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--nn-bg); color: var(--nn-text); }
+.header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; border-bottom: 1px solid var(--nn-border); }
+.header h1 { margin: 2px 0 0; font-size: 23px; }
+.header > button:last-child { margin-left: auto; }
+.eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--nn-text-muted); }
+.content { width: min(100%, 1060px); padding: 22px 24px 60px; margin: 0 auto; }
+.intro, .ai p, .card p, .empty { color: var(--nn-text-muted); line-height: 1.55; }
+.root button, .root select { font: inherit; }
+.root button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 7px 11px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; }
+.root button:hover { background: var(--nn-surface-soft); }
+.root button:disabled { cursor: default; opacity: .5; }
+.root select { min-height: 36px; max-width: 100%; padding: 6px; border: 1px solid var(--nn-border); border-radius: 8px; color: var(--nn-text); background: var(--nn-surface); }
+.ai, .review, .preview { padding: 16px; border: 1px solid var(--nn-border); border-radius: 12px; background: var(--nn-surface); }
+.ai { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.ai > div { width: 100%; display: flex; align-items: center; gap: 8px; }
+.ai p { width: 100%; margin: 0; font-size: 13px; }
+.ai label { display: grid; gap: 4px; font-size: 12px; }
+.review { margin-top: 14px; border-color: var(--nn-accent); }
+.review h2 { margin: 0; font-size: 18px; }
+.review pre, .preview pre { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
+.review button, .preview button { margin: 9px 8px 0 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 22px 0 14px; }
+.toolbar span { margin-right: auto; font-weight: 700; }
+.list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.card { min-width: 0; align-self: start; padding: 16px; border: 1px solid var(--nn-border); border-radius: 12px; background: var(--nn-surface); }
+.cardTop { display: flex; justify-content: space-between; gap: 10px; color: var(--nn-text-muted); font-size: 11px; }
+.kind { color: var(--nn-accent); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.card h2 { margin: 10px 0 5px; font-size: 17px; }
+.card p { margin: 0 0 8px; font-size: 13px; }
+.card blockquote { margin: 10px 0; padding: 8px 11px; border-left: 2px solid var(--nn-accent); background: var(--nn-surface-soft); color: var(--nn-text-muted); overflow-wrap: anywhere; font-size: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.card .preview { margin-top: 14px; background: var(--nn-bg); }
+.preview h2, .preview h3 { margin: 0 0 8px; font-size: 16px; }
+.preview p { font-size: 12px; }
+.diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+.diff > div { min-width: 0; }
+.error { color: var(--nn-danger); }
+.empty { padding: 35px; text-align: center; }
+.mobileMenu { display: none !important; }
+.root button:focus-visible, .root select:focus-visible, .root summary:focus-visible { outline: 3px solid var(--nn-focus); outline-offset: 2px; }
+@media (max-width: 650px) { .header { padding: 14px 16px; }.header h1 { font-size: 18px; }.content { padding: 16px; }.mobileMenu { display: inline-flex !important; }.diff { grid-template-columns: 1fr; } }

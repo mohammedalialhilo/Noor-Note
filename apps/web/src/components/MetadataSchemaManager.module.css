@@ -1,0 +1,22 @@
+.card { padding: 27px 29px; margin: 0 0 16px; border: 1px solid var(--nn-border); border-radius: 12px; background: var(--nn-surface-soft); }
+.heading { display: flex; justify-content: space-between; gap: 15px; align-items: start; }
+.heading h2 { margin: 0 0 6px; color: var(--nn-text); font-family: Georgia, serif; font-size: 21px; }
+.heading p, .empty, .hint { margin: 0; color: var(--nn-text-muted); font-size: 12px; line-height: 1.5; }
+.list { list-style: none; padding: 0; margin: 20px 0 0; }
+.list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--nn-border); }
+.list li div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.list strong { font-size: 12px; color: var(--nn-text); }
+.list span { font-size: 11px; color: var(--nn-text-muted); overflow-wrap: anywhere; }
+.delete, .removeField, .addField { border: 1px solid var(--nn-border); border-radius: 6px; padding: 6px; background: var(--nn-surface); color: var(--nn-danger); cursor: pointer; }
+.empty { margin-top: 16px; }
+.form { display: grid; gap: 12px; max-height: 65dvh; overflow-y: auto; padding-right: 3px; }
+.form label { display: grid; gap: 5px; color: var(--nn-text-soft); font-size: 12px; }
+.form input, .form select { width: 100%; min-width: 0; min-height: 36px; padding: 6px 8px; border: 1px solid var(--nn-border); border-radius: 6px; color: var(--nn-text); background: var(--nn-surface); font: inherit; }
+.fields { display: grid; gap: 8px; }
+.fields > strong { font-size: 12px; }
+.field { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; border: 1px solid var(--nn-border); border-radius: 7px; }
+.removeField { color: var(--nn-danger); }
+.addField { color: var(--nn-accent); }
+.error { color: var(--nn-danger); font-size: 12px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media(max-width: 600px) { .card { padding: 18px; }.heading { flex-direction: column; }.field { grid-template-columns: 1fr; } }

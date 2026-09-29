@@ -1,0 +1,9 @@
+# Voice notes
+
+Open **Note actions → Record voice note** or run **Record voice note** from the command palette. **Record** requests microphone permission. The recorder supports pause, resume, stop, draft playback, and discarding a draft. Saving creates an audio attachment in the current note folder or selected vault folder. A saved recording can be played, renamed, and linked into any note in the vault. The note receives an ordinary relative Markdown link, and the attachment can also be opened from the file explorer.
+
+The recorder prefers Opus in WebM, then Opus in Ogg, then browser-supported MP4. It uses the browser's actual `MediaRecorder.mimeType` to choose the extension. Recording happens entirely in the browser; no audio is uploaded. Microphone tracks stop when recording ends or the dialog closes. Draft audio uses a temporary object URL that is revoked on discard or close.
+
+Each recorded attachment has a stable UUID and validated `recording` metadata: start timestamp and active duration in milliseconds. Audio bytes use the existing attachment store, which moves larger Blobs to OPFS where available. Vault ZIP export preserves both bytes and recording metadata. A separate transcript sidecar refers to the attachment UUID without changing the recorder or audio file format. Renaming in the voice-note dialog previews affected Markdown links and updates them with the attachment path in one revision-checked transaction. See [transcription](transcription.md).
+
+Limitations: the browser keeps recording chunks until Stop, so very long sessions use growing browser memory. The rename planner handles ordinary local Markdown links outside YAML and code; unusual manually authored links may need repair. The generic file explorer rename still uses the older attachment operation and does not refactor note links. Microphone capture needs a secure browser context and a supported `MediaRecorder` implementation.

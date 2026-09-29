@@ -1,0 +1,23 @@
+﻿.dialog { width: min(980px, calc(100vw - 24px)); max-height: min(90vh, 900px); overflow: auto; }
+.content { display: grid; grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr); gap: 24px; padding: 20px; color: var(--nn-text); }
+.source, .transcript { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.source label, .segmentBody label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.source input, .segmentBody input, .segmentBody textarea { width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); color: inherit; font: inherit; }
+.source audio, .source video { width: 100%; max-height: 260px; }
+.source p, .transcript p { margin: 0; color: var(--nn-text-muted); font-size: 13px; line-height: 1.45; }
+.content button { padding: 8px 12px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); color: inherit; cursor: pointer; }
+.content button:disabled { opacity: .5; cursor: not-allowed; }
+.content button:focus-visible, .content input:focus-visible, .content textarea:focus-visible { outline: 2px solid var(--nn-focus); outline-offset: 2px; }
+.transcript header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.transcript h3 { margin: 0; }
+.segments { max-height: 440px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.segment { display: flex; align-items: flex-start; gap: 8px; padding: 10px; border: 1px solid var(--nn-border); border-radius: 10px; }
+.choose { padding-top: 8px; }
+.segmentBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.segmentBody textarea { min-height: 66px; resize: vertical; }
+.time { flex: none; font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.save { align-self: flex-start; }
+.error { color: var(--nn-danger) !important; }
+@media (max-width: 700px) { .content { grid-template-columns: 1fr; padding: 14px; } .segments { max-height: 40vh; } }
+
