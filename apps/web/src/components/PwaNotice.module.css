@@ -1,0 +1,5 @@
+.notice { position: fixed; right: 1rem; bottom: 2.75rem; z-index: 80; width: min(26rem, calc(100vw - 2rem)); display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border: 1px solid var(--nn-border); border-radius: .75rem; background: var(--nn-surface); color: var(--nn-text); box-shadow: 0 12px 35px var(--nn-shadow); font-size: .8rem; line-height: 1.4; }
+.notice span { flex: 1; }
+.notice button { flex: none; min-height: 2.25rem; border: 1px solid var(--nn-accent-solid); border-radius: .45rem; padding: .3rem .65rem; background: var(--nn-accent-solid); color: var(--nn-on-accent); cursor: pointer; }
+.notice button:focus-visible { outline: 2px solid var(--nn-focus); outline-offset: 2px; }
+@media (max-width: 700px) { .notice { bottom: 4.5rem; } }

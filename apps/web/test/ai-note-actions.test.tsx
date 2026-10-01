@@ -36,4 +36,19 @@ describe('AI note action review', () => {
     render(<AiNoteActions action="rewrite" source={source} selection={null} gateway={gateway} onClose={() => undefined} onApplyEdit={() => false} onApplyTitle={() => false} onUndoEdit={() => false} onUndoTitle={() => false} />);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Review request' }).hasAttribute('disabled')).toBe(true));
   });
+
+  it('saves reviewed flashcard suggestions as study cards and can undo them', async () => {
+    const gateway = new AiGateway();
+    gateway.registerChat({ descriptor: { id: 'test.local', name: 'Test local', model: 'test', execution: 'onDevice', recipient: null, capabilities: ['chat'] }, complete: async () => ({ text: 'Q:: Water?\nA:: H2O', model: 'test' }) });
+    saveAiPolicy(localStorage, setAiScopePermission(setAiMode(defaultAiPolicy, 'explicit'), 'currentNote', true));
+    const source = { id: crypto.randomUUID(), vaultId: crypto.randomUUID(), path: '/Science.md', title: 'Science', markdown: 'Water notes.' };
+    const save = vi.fn(async () => ['card-id']), undo = vi.fn(async () => undefined);
+    render(<AiNoteActions action="generate-flashcards" source={source} selection={null} gateway={gateway} onClose={() => undefined} onApplyEdit={() => false} onApplyTitle={() => false} onUndoEdit={() => false} onUndoTitle={() => false} onSaveStudyCards={save} onUndoStudyCards={undo} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve and generate' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add as study cards' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(source, [expect.objectContaining({ front: 'Water?', back: 'H2O', sourceKind: 'ai' })]));
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(undo).toHaveBeenCalledWith(['card-id']));
+  });
 });

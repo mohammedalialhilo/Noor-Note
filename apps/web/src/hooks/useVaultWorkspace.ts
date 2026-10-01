@@ -51,6 +51,7 @@ export function useVaultWorkspace() {
   const pendingRef = useRef<{ id: string; patch: NotePatch } | null>(null);
   const dirtyRef = useRef(false);
   const selectedRef = useRef<VaultNote | null>(null);
+  const treeRef = useRef<VaultTree | null>(null);
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [deletedVaults, setDeletedVaults] = useState<Vault[]>([]);
   const [activeVault, setActiveVault] = useState<Vault | null>(null);
@@ -75,7 +76,11 @@ export function useVaultWorkspace() {
 
   const updateEntry = useCallback((note: VaultNote) => {
     const entry = toNoteEntry(note);
-    setTree((current) => current && current.vault.id === note.vaultId ? { ...current, notes: [...current.notes.filter((item) => item.id !== note.id), entry] } : current);
+    const current = treeRef.current;
+    if (!current || current.vault.id !== note.vaultId) return;
+    const next = { ...current, notes: [...current.notes.filter((item) => item.id !== note.id), entry] };
+    treeRef.current = next;
+    setTree(next);
   }, []);
 
   const refresh = useCallback(async (vaultId: string) => {
@@ -85,6 +90,7 @@ export function useVaultWorkspace() {
     setVaults(allVaults);
     setDeletedVaults(deleted);
     setActiveVault(nextTree.vault);
+    treeRef.current = nextTree;
     setTree(nextTree);
   }, []);
 
@@ -497,13 +503,13 @@ export function useVaultWorkspace() {
     await flushPending();
     if (mode === 'lexical') {
       searchClientRef.current ??= new SearchClient();
-      return searchClientRef.current.search(repository, activeVault.id, `${query} sort:${sort}`, limit);
+      return searchClientRef.current.search(repository, activeVault.id, `${query} sort:${sort}`, limit, treeRef.current);
     }
     semanticClientRef.current ??= new SemanticSearchClient();
     const semantic = semanticClientRef.current.search(repository, activeVault.id, query, limit, onProgress);
     if (mode === 'semantic') return semantic;
     searchClientRef.current ??= new SearchClient();
-    const lexical = searchClientRef.current.search(repository, activeVault.id, `${query} sort:${sort}`, limit);
+    const lexical = searchClientRef.current.search(repository, activeVault.id, `${query} sort:${sort}`, limit, treeRef.current);
     const [lexicalResults, semanticResults] = await Promise.all([lexical, semantic]);
     return hybridResults(lexicalResults, semanticResults, limit);
   }, [activeVault, flushPending]);

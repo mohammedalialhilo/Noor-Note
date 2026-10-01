@@ -59,6 +59,15 @@ describe('DexieVaultRepository', () => {
     expect(tree.notes.find((item) => item.id === note.id)?.links).toEqual(['Alpha', 'Beta.md']);
   });
 
+  it('reads note bodies in input order with one batch and skips missing IDs', async () => {
+    const vault = await repository.initialize();
+    const first = await repository.createNote(vault.id, null, 'First', '# First');
+    const second = await repository.createNote(vault.id, null, 'Second', '# Second');
+    expect((await repository.getNotes([second.id, crypto.randomUUID(), first.id])).map((note) => [note.id, note.markdown])).toEqual([
+      [second.id, '# Second'], [first.id, '# First'],
+    ]);
+  });
+
   it('renders note content against the final collision-free path atomically', async () => {
     const vault = await repository.initialize();
     await repository.createNote(vault.id, null, 'Plan', 'First');

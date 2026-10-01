@@ -1,0 +1,20 @@
+.panel { padding: 1.25rem; border-bottom: 1px solid var(--nn-border); background: var(--nn-surface); }
+.heading, .fieldsHeading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.heading h2, .fieldsHeading h3 { margin: 0; }
+.heading p { margin: .25rem 0 0; color: var(--nn-text-muted); }
+.heading button, .fieldsHeading button, .form > button, .remove { border: 1px solid var(--nn-border); border-radius: .45rem; padding: .45rem .7rem; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; }
+.heading button[aria-pressed='true'], .form > button { background: var(--nn-accent); color: var(--nn-on-accent); }
+.heading button:focus-visible, .form button:focus-visible, .form input:focus-visible, .form select:focus-visible, .form textarea:focus-visible { outline: 2px solid var(--nn-focus); outline-offset: 2px; }
+.form { display: grid; gap: 1rem; max-width: 48rem; margin-top: 1rem; }
+.form label { display: grid; gap: .3rem; font-size: .9rem; }
+.form input:not([type='checkbox']), .form select, .form textarea { width: 100%; padding: .55rem .65rem; border: 1px solid var(--nn-border); border-radius: .4rem; color: var(--nn-text); background: var(--nn-bg); font: inherit; }
+.form small { color: var(--nn-text-muted); }
+.form fieldset { min-width: 0; border: 1px solid var(--nn-border); border-radius: .5rem; padding: .9rem; }
+.form legend { padding: 0 .35rem; font-weight: 600; }
+.form .checkbox { display: flex; align-items: center; gap: .5rem; }
+.choices { display: flex; flex-wrap: wrap; gap: .8rem; }
+.twoColumns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.fieldConfig { display: grid; gap: .8rem; }
+.remove { justify-self: start; }
+.error { color: var(--nn-danger); }
+@media (max-width: 650px) { .twoColumns { grid-template-columns: 1fr; } .panel { padding: 1rem; } }

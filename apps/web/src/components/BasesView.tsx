@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react';
-import { Database, Menu, Plus, Settings2, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Database, FileText, Menu, Plus, Settings2, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import {
   aggregateBaseNotes, applyBaseView, availableBaseFields, baseDefinitionSchema, baseQuerySchema, baseViewKindSchema, evaluateBaseFormulas, formulaField, inferPropertyType,
   newBaseView, normalizeTagName, parsePropertyInput, planTagRewrite, propertyTypeSchema, readBaseDefinition, removeBaseFormula,
   selectBaseNotes, updateFrontmatterProperty, withBaseDefinition,
-  type Base, type BaseDefinition, type BaseFilter, type BaseFormula, type BaseQuery, type BaseView, type PropertyType,
+  type Base, type BaseDefinition, type BaseFilter, type BaseForm, type BaseFormula, type BaseQuery, type BaseView, type PropertyType,
 } from '@noor-note/core';
 import type { NoteEntry } from '@noor-note/storage';
 import type { useVaultWorkspace } from '../hooks/useVaultWorkspace';
@@ -14,9 +14,12 @@ import { BasesStore } from '../lib/bases';
 import type { WorkspaceLayout } from '../lib/workspace-layout';
 import { BaseViewPanel } from './BaseViews';
 import { BaseAggregateSettings, BaseFormulaSettings, formulaLabels as getFormulaLabels } from './BaseFormulaSettings';
+import { BaseChartSettings } from './BaseChartSettings';
+import { BaseFormPanel } from './BaseFormPanel';
+import { submitBaseForm } from '../lib/base-forms';
 import styles from './BasesView.module.css';
 
-interface Props { workspace: ReturnType<typeof useVaultWorkspace>; onOpenNote: (id: string) => void; onCreateFromBase: (baseId: string, folderId: string | null) => void; onOpenNavigation: (event: ReactMouseEvent<HTMLButtonElement>) => void; initialTabs?: WorkspaceLayout['baseTabs']; onTabsChange?: (tabs: WorkspaceLayout['baseTabs']) => void }
+interface Props { workspace: ReturnType<typeof useVaultWorkspace>; onOpenNote: (id: string) => void; onCreateFromBase: (baseId: string, folderId: string | null) => void; onOpenNavigation: (event: ReactMouseEvent<HTMLButtonElement>) => void; initialTabs?: WorkspaceLayout['baseTabs']; onTabsChange?: (tabs: WorkspaceLayout['baseTabs']) => void; pluginViews?: { id: string; title: string; body: string }[]; readOnly?: boolean }
 const fieldLabel = (field: string, labels?: Readonly<Record<string, string>>) => labels?.[field] ?? (field.startsWith('property:') ? field.slice(9) : field === 'createdAt' ? 'Created' : field === 'updatedAt' ? 'Updated' : field === 'openTasks' ? 'Open tasks' : field[0]!.toUpperCase() + field.slice(1));
 const dateFields = (fields: string[]) => fields.filter((field) => field === 'createdAt' || field === 'updatedAt' || field.startsWith('property:') || field.startsWith('formula:'));
 
@@ -47,7 +50,7 @@ function QueryEditor({ query, folders, fields, formulaLabels, onApply, onClose }
   </form>;
 }
 
-function ViewSettings({ view, fields, formulas, formulaLabels, onPatch, onSaveFormula, onDeleteFormula, onDelete }: { view: BaseView; fields: string[]; formulas: BaseFormula[]; formulaLabels: Readonly<Record<string, string>>; onPatch: (patch: Partial<BaseView>) => Promise<void>; onSaveFormula: (formula: BaseFormula) => Promise<boolean>; onDeleteFormula: (id: string) => Promise<boolean>; onDelete: () => void }) {
+function ViewSettings({ view, fields, formulas, formulaLabels, sourceBaseId, bases, onSelectBase, onPatch, onSaveFormula, onDeleteFormula, onDelete }: { view: BaseView; fields: string[]; formulas: BaseFormula[]; formulaLabels: Readonly<Record<string, string>>; sourceBaseId: string; bases: Base[]; onSelectBase: (id: string) => void; onPatch: (patch: Partial<BaseView>) => Promise<void>; onSaveFormula: (formula: BaseFormula) => Promise<boolean>; onDeleteFormula: (id: string) => Promise<boolean>; onDelete: () => void }) {
   const [filterField, setFilterField] = useState(fields[0] ?? 'title');
   const [filterOperator, setFilterOperator] = useState<BaseFilter['operator']>('contains');
   const [filterValue, setFilterValue] = useState('');
@@ -79,13 +82,14 @@ function ViewSettings({ view, fields, formulas, formulaLabels, onPatch, onSaveFo
     {view.kind === 'calendar' && <div className={styles.settingsSection}><h4>Calendar dates</h4><div className={styles.settingsGrid}><FieldSelect formulaLabels={formulaLabels} fields={dateFields(fields)} value={view.calendar.dateField} label="Date or start" onChange={(dateField) => { if (dateField) patch({ calendar: { ...view.calendar, dateField } }); }} /><FieldSelect formulaLabels={formulaLabels} fields={dateFields(fields)} value={view.calendar.endField} allowNone label="End date" onChange={(endField) => patch({ calendar: { ...view.calendar, endField } })} /><FieldSelect formulaLabels={formulaLabels} fields={dateFields(fields)} value={view.calendar.taskDateField} allowNone label="Task date" onChange={(taskDateField) => patch({ calendar: { ...view.calendar, taskDateField } })} /></div></div>}
     {view.kind === 'map' && <div className={styles.settingsSection}><h4>Map location</h4><FieldSelect formulaLabels={formulaLabels} fields={fields.filter((field) => field.startsWith('property:') || field.startsWith('formula:'))} value={view.map.locationField} label="Location property" onChange={(locationField) => { if (locationField) patch({ map: { locationField } }); }} /><p>Use “latitude, longitude” text or a structured location with lat/lng. Place names without coordinates remain unplaced offline.</p></div>}
     {(view.kind === 'timeline' || view.kind === 'gantt') && <div className={styles.settingsSection}><h4>{view.kind === 'gantt' ? 'Gantt' : 'Timeline'} fields</h4><div className={styles.settingsGrid}><FieldSelect formulaLabels={formulaLabels} fields={dateFields(fields)} value={view.kind === 'gantt' ? view.gantt.startField : view.timeline.startField} label="Start date" onChange={(startField) => { if (startField) patch(view.kind === 'gantt' ? { gantt: { ...view.gantt, startField } } : { timeline: { ...view.timeline, startField } }); }} /><FieldSelect formulaLabels={formulaLabels} fields={dateFields(fields)} value={view.kind === 'gantt' ? view.gantt.endField : view.timeline.endField} label="End date" onChange={(endField) => { if (endField) patch(view.kind === 'gantt' ? { gantt: { ...view.gantt, endField } } : { timeline: { ...view.timeline, endField } }); }} />{view.kind === 'timeline' ? <FieldSelect formulaLabels={formulaLabels} fields={fields} value={view.timeline.groupField} allowNone label="Group field" onChange={(groupField) => patch({ timeline: { ...view.timeline, groupField } })} /> : <><FieldSelect formulaLabels={formulaLabels} fields={fields} value={view.gantt.dependencyField} allowNone label="Dependency metadata" onChange={(dependencyField) => patch({ gantt: { ...view.gantt, dependencyField } })} /><FieldSelect formulaLabels={formulaLabels} fields={fields} value={view.gantt.progressField} allowNone label="Progress property" onChange={(progressField) => patch({ gantt: { ...view.gantt, progressField } })} /></>}</div></div>}
+    {view.kind === 'chart' && <BaseChartSettings chart={view.chart} fields={fields} formulaLabels={formulaLabels} sourceBaseId={sourceBaseId} bases={bases} onSelectBase={onSelectBase} onChange={(chart) => patch({ chart })} />}
     <BaseFormulaSettings formulas={formulas} onSave={onSaveFormula} onDelete={onDeleteFormula} />
     <BaseAggregateSettings view={view} fields={fields} formulaLabels={formulaLabels} onPatch={onPatch} />
     <button type="button" className={styles.danger} onClick={onDelete}><Trash2 size={14} /> Delete view</button>
   </div>;
 }
 
-export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavigation, initialTabs, onTabsChange }: Props) {
+export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavigation, initialTabs, onTabsChange, pluginViews = [], readOnly = false }: Props) {
   const vaultId = workspace.activeVault?.id;
   const store = useMemo(() => workspace.repository && vaultId ? new BasesStore(workspace.repository, vaultId) : null, [workspace.repository, vaultId]);
   const [bases, setBases] = useState<Base[]>([]);
@@ -101,6 +105,8 @@ export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavig
   const [newViewKind, setNewViewKind] = useState<BaseView['kind']>('table');
   const [showQuery, setShowQuery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [pluginViewId, setPluginViewId] = useState<string | null>(null);
   const [searchIds, setSearchIds] = useState<Set<string> | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +123,7 @@ export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavig
   const view = definition?.views.find((item) => item.id === definition.activeViewId) ?? null;
   const formulaLabels = useMemo(() => getFormulaLabels(definition?.formulas ?? []), [definition]);
   const computed = useMemo(() => definition ? evaluateBaseFormulas(workspace.notes, definition.formulas) : new Map(), [definition, workspace.notes]);
-  const fields = availableBaseFields(workspace.notes, [...(view ? [...view.columnOrder, ...Object.keys(view.fieldTypes), ...(view.groupBy ? [view.groupBy] : [])] : []), ...Object.keys(formulaLabels)]);
+  const fields = availableBaseFields(workspace.notes, [...(view ? [...view.columnOrder, ...Object.keys(view.fieldTypes), ...(view.groupBy ? [view.groupBy] : []), view.chart.groupField, ...(view.chart.valueField ? [view.chart.valueField] : []), view.chart.xField, view.chart.yField] : []), ...Object.keys(formulaLabels)]);
   const searchExpression = definition?.query.search.trim() ?? '';
   const searchNotes = workspace.searchNotes;
   useEffect(() => {
@@ -129,6 +135,7 @@ export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavig
   }, [searchExpression, searchNotes, workspace.notes]);
   const selected = definition ? selectBaseNotes(workspace.notes, definition.query, workspace.folders, searchExpression ? searchIds ?? undefined : undefined, computed) : [];
   const rows = view ? applyBaseView(selected, view, workspace.folders, computed) : [];
+  const pluginView = pluginViews.find((item) => item.id === pluginViewId) ?? null;
   const aggregates = view ? aggregateBaseNotes(rows, view.aggregates, workspace.folders, computed) : [];
   const replace = (updated: Base) => { const next = basesRef.current.map((item) => item.id === updated.id ? updated : item); basesRef.current = next; setBases(next); };
   const persist = async (id: string, transform: (definition: BaseDefinition) => BaseDefinition): Promise<boolean> => {
@@ -151,6 +158,19 @@ export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavig
     }
   };
   const patchView = async (patch: Partial<BaseView>) => { if (base && view) await persist(base.id, (current) => ({ ...current, views: current.views.map((item) => item.id === view.id ? { ...item, ...patch } : item) })); };
+  const saveForm = async (form: BaseForm): Promise<boolean> => base ? persist(base.id, (current) => ({ ...current, form })) : false;
+  const submitForm = async (values: Record<string, unknown>, files: Record<string, File[]>): Promise<boolean> => {
+    if (!base || !workspace.repository || !workspace.activeVault || readOnly) return false;
+    try {
+      await saveQueue.current;
+      await workspace.flushPending();
+      const note = await submitBaseForm(workspace.repository, workspace.activeVault.id, base.id, values, files);
+      await workspace.refreshActive();
+      onOpenNote(note.id);
+      setError(null);
+      return true;
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not submit form.'); return false; }
+  };
   const saveFormula = async (formula: BaseFormula): Promise<boolean> => {
     if (!base || !view) return false;
     return persist(base.id, (current) => {
@@ -199,23 +219,33 @@ export function BasesView({ workspace, onOpenNote, onCreateFromBase, onOpenNavig
   };
   const bulkEdit = async (ids: string[], field: string, input: string): Promise<boolean> => { if (!field.startsWith('property:')) { setError('Choose a property field.'); return false; } for (const id of ids) { const note = workspace.notes.find((item) => item.id === id); if (note && !await edit(note, field, input)) return false; } return true; };
   const bulkTrash = async (ids: string[]): Promise<boolean> => { for (const id of ids) { await workspace.removeNote(id); if (!((await workspace.repository?.getNote(id))?.deletedAt)) { setError('Some notes could not be moved to Trash.'); return false; } } return true; };
-  const activateResource = (id: string) => { setOpenIds((current) => current.includes(id) ? current : [...current, id]); setActiveId(id); setShowQuery(false); setShowSettings(false); };
+  const activateResource = (id: string) => { setOpenIds((current) => current.includes(id) ? current : [...current, id]); setActiveId(id); setShowQuery(false); setShowSettings(false); setShowForm(false); };
   const closeResourceTab = (id: string) => { const next = openIds.filter((item) => item !== id); setOpenIds(next); if (activeId === id) setActiveId(next.at(-1) ?? null); };
 
   return <main className={styles.layout}>
     <div className={styles.topbar}><button type="button" className="icon-button mobile-menu" aria-label="Open navigation" onClick={onOpenNavigation}><Menu size={20} /></button><Database size={18} /><strong>Bases</strong><span>Saved views of Markdown notes</span></div>
-    {openIds.length > 0 && <div className="resource-tabbar" role="tablist" aria-label="Open Base tabs">{openIds.map((id) => { const item = bases.find((entry) => entry.id === id && !entry.deletedAt); return item ? <div key={id} className="resource-tab"><button type="button" role="tab" aria-selected={activeId === id} onClick={() => activateResource(id)}>{item.title}</button><button type="button" aria-label={`Close ${item.title} Base tab`} onClick={() => closeResourceTab(id)}><X size={13} /></button></div> : null; })}</div>}
+    {openIds.length > 0 && <div className="resource-tabbar" role="group" aria-label="Open Base tabs">{openIds.map((id) => { const item = bases.find((entry) => entry.id === id && !entry.deletedAt); return item ? <div key={id} className="resource-tab"><button type="button" aria-pressed={activeId === id} onClick={() => activateResource(id)}>{item.title}</button><button type="button" aria-label={`Close ${item.title} Base tab`} onClick={() => closeResourceTab(id)}><X size={13} /></button></div> : null; })}</div>}
     <div className={styles.body}><aside className={styles.sidebar} aria-label="Bases"><h2>Your Bases</h2><div className={styles.baseList}>{bases.filter((item) => !item.deletedAt).map((item) => <button key={item.id} type="button" aria-current={activeId === item.id ? 'page' : undefined} className={activeId === item.id ? styles.active : ''} onClick={() => activateResource(item.id)}>{item.title}</button>)}</div><form onSubmit={(event) => { void create(event); }}><label className="sr-only" htmlFor="new-base-name">New Base name</label><input id="new-base-name" required maxLength={200} value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="New Base name" /><button type="submit" disabled={busy}><Plus size={15} /> Create Base</button></form>{bases.some((item) => item.deletedAt) && <details className={styles.deleted}><summary>Deleted Bases</summary>{bases.filter((item) => item.deletedAt).map((item) => <div key={item.id}><span>{item.title}</span><button type="button" onClick={() => { void restore(item); }}>Restore</button></div>)}</details>}</aside>
       <div className={styles.workspace}>{error && <div className={styles.errorBar} role="alert">{error}<button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X size={15} /></button></div>}
         {!base || !definition || !view ? <div className={styles.emptyBase}><Database size={34} /><h1>Build a view from your notes</h1><p>A Base is a saved query over your Markdown notes. Create one to organize existing notes without moving their content.</p></div> : <>
-          <div className={styles.baseHeading}><div><span className={styles.eyebrow}>BASE · {rows.length} NOTES</span><h1>{base.title}</h1></div><div className={styles.headingActions}><button type="button" onClick={() => onCreateFromBase(base.id, definition.query.folderId)}><Plus size={15} /> New note</button><button type="button" onClick={() => setShowQuery((open) => !open)} aria-expanded={showQuery}><SlidersHorizontal size={16} /> Query</button><button type="button" onClick={() => { void rename(); }} disabled={busy}>Rename</button><button type="button" className={styles.danger} onClick={() => { void remove(); }} disabled={busy}><Trash2 size={15} /> Delete</button></div></div>
+          <div className={styles.baseHeading}><div><span className={styles.eyebrow}>BASE · {rows.length} NOTES</span><h1>{base.title}</h1></div><div className={styles.headingActions}><button type="button" onClick={() => onCreateFromBase(base.id, definition.query.folderId)} disabled={readOnly}><Plus size={15} /> New note</button><button type="button" onClick={() => setShowForm((open) => !open)} aria-expanded={showForm}><FileText size={15} /> Form</button><button type="button" onClick={() => setShowQuery((open) => !open)} aria-expanded={showQuery}><SlidersHorizontal size={16} /> Query</button><button type="button" onClick={() => { void rename(); }} disabled={busy || readOnly}>Rename</button><button type="button" className={styles.danger} onClick={() => { void remove(); }} disabled={busy || readOnly}><Trash2 size={15} /> Delete</button></div></div>
+          {showForm && <BaseFormPanel key={base.id} form={definition.form} workspace={workspace} readOnly={readOnly} onSave={saveForm} onSubmit={submitForm} />}
           {showQuery && <QueryEditor key={base.id} query={definition.query} folders={workspace.folders} fields={fields} formulaLabels={formulaLabels} onApply={(query) => persist(base.id, (current) => ({ ...current, query }))} onClose={() => setShowQuery(false)} />}
-          <div className={styles.viewBar}><div className={styles.viewTabs} role="tablist" aria-label="Base views">{definition.views.map((item) => <button key={item.id} type="button" role="tab" aria-selected={item.id === view.id} onClick={() => { void persist(base.id, (current) => ({ ...current, activeViewId: item.id })); setShowSettings(false); }}>{item.name}<small>{item.kind}</small></button>)}</div><div className={styles.viewActions}><select aria-label="New view type" value={newViewKind} onChange={(event) => setNewViewKind(baseViewKindSchema.parse(event.target.value))}>{baseViewKindSchema.options.map((kind) => <option key={kind} value={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</option>)}</select><button type="button" onClick={() => { void addView(); }}><Plus size={14} /> View</button><button type="button" aria-label="View settings" aria-expanded={showSettings} onClick={() => setShowSettings((open) => !open)}><Settings2 size={17} /></button></div></div>
-          {showSettings && <ViewSettings key={view.id} view={view} fields={fields} formulas={definition.formulas} formulaLabels={formulaLabels} onPatch={patchView} onSaveFormula={saveFormula} onDeleteFormula={deleteFormula} onDelete={() => { void deleteView(); }} />}
+          <div className={styles.viewBar}><div className={styles.viewTabs} role="tablist" aria-label="Base views" onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+            const current = tabs.indexOf(event.target as HTMLButtonElement);
+            if (current < 0 || tabs.length === 0) return;
+            event.preventDefault();
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[next]?.focus();
+            tabs[next]?.click();
+          }}>{definition.views.map((item) => <button key={item.id} type="button" role="tab" tabIndex={pluginViewId === null && item.id === view.id ? 0 : -1} aria-selected={pluginViewId === null && item.id === view.id} onClick={() => { setPluginViewId(null); void persist(base.id, (current) => ({ ...current, activeViewId: item.id })); setShowSettings(false); }}>{item.name}<small>{item.kind}</small></button>)}{pluginViews.map((item) => <button key={item.id} type="button" role="tab" tabIndex={pluginViewId === item.id ? 0 : -1} aria-selected={pluginViewId === item.id} onClick={() => { setPluginViewId(item.id); setShowSettings(false); }}>{item.title}<small>Plugin</small></button>)}</div><div className={styles.viewActions}><select aria-label="New view type" value={newViewKind} onChange={(event) => setNewViewKind(baseViewKindSchema.parse(event.target.value))}>{baseViewKindSchema.options.map((kind) => <option key={kind} value={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</option>)}</select><button type="button" onClick={() => { void addView(); }}><Plus size={14} /> View</button><button type="button" aria-label="View settings" aria-expanded={showSettings} onClick={() => setShowSettings((open) => !open)}><Settings2 size={17} /></button></div></div>
+          {showSettings && <ViewSettings key={view.id} view={view} fields={fields} formulas={definition.formulas} formulaLabels={formulaLabels} sourceBaseId={base.id} bases={bases} onSelectBase={activateResource} onPatch={patchView} onSaveFormula={saveFormula} onDeleteFormula={deleteFormula} onDelete={() => { void deleteView(); }} />}
           {searchExpression && searchIds === null && !searchError && <p className={styles.status} role="status">Searching local notes…</p>}
           {searchError && <p className={styles.error} role="alert">Search expression: {searchError}</p>}
           {aggregates.length > 0 && <section className={styles.aggregateBar} aria-label="View summaries">{aggregates.map((item) => <div key={item.id}><span>{item.label}</span><strong>{Array.isArray(item.value) ? item.value.length ? `${item.value.slice(0, 12).join(', ')}${item.value.length > 12 ? ` +${item.value.length - 12} more` : ''}` : 'None' : item.value === null ? '—' : new Intl.NumberFormat().format(item.value)}</strong></div>)}</section>}
-          <div className={styles.results}><BaseViewPanel key={view.id} notes={rows} view={view} fields={fields} folders={workspace.folders} computed={computed} formulaLabels={formulaLabels} attachments={workspace.attachments} repository={workspace.repository} onOpen={onOpenNote} onPatchView={patchView} onEdit={edit} onMoveGroup={moveGroup} onBulkEdit={bulkEdit} onBulkTrash={bulkTrash} /></div>
+          <div className={styles.results} role="tabpanel" aria-label={pluginView?.title ?? view.name}>{pluginView ? <section className={styles.pluginResults}><p>{pluginView.body}</p><ul>{selected.map((note) => <li key={note.id}><button type="button" onClick={() => onOpenNote(note.id)}>{note.title || "Untitled note"}<small>{note.path}</small></button></li>)}</ul></section> : <BaseViewPanel key={view.id} notes={rows} view={view} fields={fields} folders={workspace.folders} computed={computed} formulaLabels={formulaLabels} attachments={workspace.attachments} repository={workspace.repository} onOpen={onOpenNote} onPatchView={patchView} onEdit={edit} onMoveGroup={moveGroup} onBulkEdit={bulkEdit} onBulkTrash={bulkTrash} />}</div>
         </>}
       </div>
     </div>

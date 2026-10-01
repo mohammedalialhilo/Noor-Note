@@ -21,6 +21,10 @@ interface SyncCursor { key: string; sequence: number }
 interface SyncPreference { key: string; enabled: boolean; attachments: boolean }
 interface DeviceRecord { key: string; id: string }
 interface AttachmentDigest { key: string; signature: string; checksum: string }
+export interface PendingRevisionActivity {
+  id: string; ownerId: string; vaultId: string; noteId: string; sourceRevisionId: string;
+  attempts: number; nextAttemptAt: number; createdAt: number; error: string | null;
+}
 const preferenceSchema = z.object({ key: z.string(), enabled: z.boolean(), attachments: z.boolean() }).strict();
 const syncQueueSchema = z.object({
   id: z.uuid(), ownerId: z.uuid(), vaultId: z.uuid(), kind: z.enum(['vault', 'folder', 'note', 'attachment']),
@@ -36,6 +40,7 @@ class SyncDatabase extends Dexie {
   preferences!: Table<SyncPreference, string>;
   devices!: Table<DeviceRecord, string>;
   attachmentDigests!: Table<AttachmentDigest, string>;
+  revisionActivities!: Table<PendingRevisionActivity, string>;
   constructor(name: string) {
     super(name);
     this.version(1).stores({
@@ -44,6 +49,7 @@ class SyncDatabase extends Dexie {
       cursors: 'key', preferences: 'key', devices: 'key',
     });
     this.version(2).stores({ attachmentDigests: 'key' });
+    this.version(3).stores({ revisionActivities: 'id, [ownerId+vaultId], [ownerId+vaultId+noteId], nextAttemptAt' });
   }
 }
 
@@ -137,7 +143,25 @@ export class CloudSyncStore {
       .sort((a, b) => rank[a.kind] - rank[b.kind] || a.createdAt - b.createdAt);
   }
   async pendingCount(ownerId: string, vaultId: string): Promise<number> {
-    return this.db.queue.where('[ownerId+vaultId]').equals([ownerId, vaultId]).count();
+    const [records, activities] = await Promise.all([
+      this.db.queue.where('[ownerId+vaultId]').equals([ownerId, vaultId]).count(),
+      this.db.revisionActivities.where('[ownerId+vaultId]').equals([ownerId, vaultId]).count(),
+    ]);
+    return records + activities;
+  }
+  async enqueueRevisionActivity(ownerId: string, vaultId: string, noteId: string, sourceRevisionId: string): Promise<string> {
+    for (const value of [ownerId, vaultId, noteId, sourceRevisionId]) z.uuid().parse(value);
+    const id = crypto.randomUUID();
+    await this.db.revisionActivities.add({ id, ownerId, vaultId, noteId, sourceRevisionId, attempts: 0, nextAttemptAt: 0, createdAt: Date.now(), error: null });
+    return id;
+  }
+  async dueRevisionActivities(ownerId: string, vaultId: string, now = Date.now()): Promise<PendingRevisionActivity[]> {
+    const items = await this.db.revisionActivities.where('[ownerId+vaultId]').equals([ownerId, vaultId]).toArray();
+    return items.filter((item) => item.nextAttemptAt <= now).sort((a, b) => a.createdAt - b.createdAt);
+  }
+  async acknowledgeRevisionActivity(id: string): Promise<void> { await this.db.revisionActivities.delete(z.uuid().parse(id)); }
+  async failRevisionActivity(item: PendingRevisionActivity, reason: string, retryAt: number): Promise<void> {
+    await this.db.revisionActivities.put({ ...item, attempts: item.attempts + 1, nextAttemptAt: retryAt, error: reason.slice(0, 500) });
   }
   async hasEverSynced(ownerId: string, vaultId: string): Promise<boolean> {
     return (await this.db.ledger.where('[ownerId+vaultId]').equals([ownerId, vaultId]).count()) > 0;

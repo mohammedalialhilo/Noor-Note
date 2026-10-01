@@ -1,0 +1,21 @@
+.root { min-width: 0; font-size: 12px; color: var(--nn-text); }
+.root h3 { margin-bottom: 10px; }
+.root > label { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--nn-text-muted); }
+.root button { border: 1px solid var(--nn-border); border-radius: 5px; background: var(--nn-surface); color: var(--nn-accent-ink); padding: 5px 7px; cursor: pointer; font: inherit; }
+.root button:hover { background: var(--nn-surface-tint); }
+.root button:disabled { opacity: .55; cursor: default; }
+.root form { display: grid; gap: 7px; margin-top: 11px; }
+.root form label { display: grid; gap: 5px; font-weight: 650; }
+.root textarea { box-sizing: border-box; width: 100%; min-height: 62px; padding: 7px; resize: vertical; border: 1px solid var(--nn-border-strong); border-radius: 6px; background: var(--nn-surface); color: var(--nn-text); font: inherit; }
+.root form button[type='submit'] { justify-self: start; background: var(--nn-accent-soft); }
+.root [role='group'] { display: grid; gap: 3px; max-height: 130px; overflow: auto; }
+.root [role='group'] button { text-align: left; overflow-wrap: anywhere; }
+.thread { padding: 10px 0; border-top: 1px solid var(--nn-border); }
+.heading { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--nn-text-muted); }
+.heading > button:first-child { flex: 1; min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.message { padding: 9px 0 8px 7px; border-left: 2px solid var(--nn-border-strong); margin-top: 7px; }
+.message time { color: var(--nn-text-faint); font-size: 10px; }
+.message p { margin: 7px 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.message small { color: var(--nn-text-muted); }
+.message > button { margin-right: 4px; }
+@media (max-width: 760px) { .root textarea { min-height: 78px; } .root button { min-height: 30px; } }

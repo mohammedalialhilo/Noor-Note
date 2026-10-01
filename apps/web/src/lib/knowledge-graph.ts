@@ -1,4 +1,4 @@
-import { parseInternalLinks, resolveLinkTarget, type Attachment, type InternalLink } from '@noor-note/core';
+import { createLinkResolver, parseInternalLinks, type Attachment, type InternalLink } from '@noor-note/core';
 import type { NoteEntry } from '@noor-note/storage';
 
 export type GraphNodeKind = 'note' | 'tag' | 'attachment';
@@ -25,6 +25,7 @@ function attachmentTarget(target: string, sourcePath: string, attachments: Attac
 export function buildKnowledgeGraph(notes: NoteEntry[], attachments: Attachment[], linksByNote: ReadonlyMap<string, InternalLink[]>): KnowledgeGraph {
   const live = notes.filter((note) => !note.deletedAt);
   const files = attachments.filter((item) => !item.deletedAt);
+  const resolver = createLinkResolver(live);
   const nodes: KnowledgeNode[] = live.map((note) => ({ id: note.id, kind: 'note', label: note.title || 'Untitled note', path: note.path, folderId: note.folderId, degree: 0 }));
   const nodeIds = new Set(nodes.map((node) => node.id));
   for (const attachment of files) nodes.push({ id: attachment.id, kind: 'attachment', label: attachment.name, path: attachment.path, folderId: attachment.folderId, degree: 0 });
@@ -42,7 +43,7 @@ export function buildKnowledgeGraph(notes: NoteEntry[], attachments: Attachment[
       add(note.id, tagId, 'tag');
     }
     for (const link of linksByNote.get(note.id) ?? []) {
-      const target = resolveLinkTarget(link, note, live);
+      const target = resolver.resolve(link, note);
       if (target) { add(note.id, target.id, link.kind === 'embed' ? 'embed' : 'link'); continue; }
       if (link.kind === 'embed') {
         const attachment = attachmentTarget(link.target, note.path, files);

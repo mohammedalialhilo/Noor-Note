@@ -29,13 +29,27 @@ function firstRenameDifference(change: RenameChange): { before: string; after: s
 
 export function flattenVaultTree(folders: VaultFolder[], notes: NoteEntry[], attachments: Attachment[], expanded: ReadonlySet<string>, sortBy: 'name' | 'updatedAt' = 'name', direction: 'asc' | 'desc' = 'asc'): Item[] {
   const rows: Item[] = [];
+  const group = <T extends { folderId?: string | null; parentId?: string | null; name?: string; title?: string; updatedAt: string }>(items: T[], parent: (item: T) => string | null): Map<string | null, T[]> => {
+    const grouped = new Map<string | null, T[]>();
+    for (const item of items) {
+      const key = parent(item);
+      const bucket = grouped.get(key);
+      if (bucket) bucket.push(item);
+      else grouped.set(key, [item]);
+    }
+    for (const [key, bucket] of grouped) grouped.set(key, ordered(bucket, sortBy, direction));
+    return grouped;
+  };
+  const foldersByParent = group(folders, (item) => item.parentId ?? null);
+  const notesByFolder = group(notes, (item) => item.folderId ?? null);
+  const attachmentsByFolder = group(attachments, (item) => item.folderId ?? null);
   const visit = (parentId: string | null, depth: number) => {
-    for (const folder of ordered(folders.filter((item) => item.parentId === parentId), sortBy, direction)) {
+    for (const folder of foldersByParent.get(parentId) ?? []) {
       rows.push({ key: `folder:${folder.id}`, id: folder.id, kind: 'folder', label: folder.name, path: folder.path, depth, parentId });
       if (expanded.has(folder.id)) visit(folder.id, depth + 1);
     }
-    for (const note of ordered(notes.filter((item) => item.folderId === parentId), sortBy, direction)) rows.push({ key: `note:${note.id}`, id: note.id, kind: 'note', label: note.title || 'Untitled note', path: note.path, depth, parentId });
-    for (const attachment of ordered(attachments.filter((item) => item.folderId === parentId), sortBy, direction)) rows.push({ key: `attachment:${attachment.id}`, id: attachment.id, kind: 'attachment', label: attachment.name, path: attachment.path, depth, parentId });
+    for (const note of notesByFolder.get(parentId) ?? []) rows.push({ key: `note:${note.id}`, id: note.id, kind: 'note', label: note.title || 'Untitled note', path: note.path, depth, parentId });
+    for (const attachment of attachmentsByFolder.get(parentId) ?? []) rows.push({ key: `attachment:${attachment.id}`, id: attachment.id, kind: 'attachment', label: attachment.name, path: attachment.path, depth, parentId });
   };
   visit(null, 0);
   return rows;
@@ -43,6 +57,7 @@ export function flattenVaultTree(folders: VaultFolder[], notes: NoteEntry[], att
 
 interface VaultExplorerProps {
   workspace: WorkspaceState;
+  readOnly?: boolean;
   focusFolder?: { id: string; token: string } | null;
   onSelectNote: (id: string) => void;
   onCreateNote: (folderId?: string | null) => void;
@@ -50,10 +65,10 @@ interface VaultExplorerProps {
   onOpenPdf: (id: string) => void;
   onOpenOcr: (id?: string) => void;
   onOpenTranscript: (id?: string) => void;
-  onImported: (count: number) => void;
+  onImport: (files: File[], folderId: string | null) => void;
 }
 
-export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNote, onOpenTrash, onOpenPdf, onOpenOcr, onOpenTranscript, onImported }: VaultExplorerProps) {
+export function VaultExplorer({ workspace, readOnly = false, focusFolder, onSelectNote, onCreateNote, onOpenTrash, onOpenPdf, onOpenOcr, onOpenTranscript, onImport }: VaultExplorerProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
@@ -66,11 +81,18 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
   const [dropError, setDropError] = useState<string | null>(null);
   const [targetFolderId, setTargetFolderId] = useState('root');
   const folderPickerRef = useRef<HTMLInputElement>(null);
+  const treeRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [treeScrollTop, setTreeScrollTop] = useState(0);
   const knownFolders = useRef(new Set<string>());
   const sortBy = workspace.activeVault?.settings.sortBy ?? 'name';
   const sortDirection = workspace.activeVault?.settings.sortDirection ?? 'asc';
   const rows = useMemo(() => flattenVaultTree(workspace.folders, workspace.notes, workspace.attachments, expanded, sortBy, sortDirection), [workspace.folders, workspace.notes, workspace.attachments, expanded, sortBy, sortDirection]);
+  const virtualTree = rows.length > 250;
+  const rowHeight = 31;
+  const windowStart = virtualTree ? Math.min(rows.length, Math.max(0, Math.floor(treeScrollTop / rowHeight) - 8)) : 0;
+  const windowEnd = virtualTree ? Math.min(rows.length, windowStart + 36) : rows.length;
+  const visibleRows = virtualTree ? rows.slice(windowStart, windowEnd) : rows;
 
   useEffect(() => {
     const current = new Set(workspace.folders.map((folder) => folder.id));
@@ -96,6 +118,21 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
   const itemsFor = (item: Item) => selected.has(item.key) ? rows.filter((row) => selected.has(row.key)) : [item];
   const topLevel = (items: Item[]) => items.filter((item) => !items.some((other) => other.kind === 'folder' && other.id !== item.id && item.path.startsWith(`${other.path}/`)));
   const focusRow = (key: string) => { setFocusedKey(key); window.requestAnimationFrame(() => rowRefs.current.get(key)?.focus()); };
+  useEffect(() => {
+    if (!focusedKey || !virtualTree || !treeRef.current) return;
+    const index = rows.findIndex((row) => row.key === focusedKey);
+    if (index < 0) return;
+    const tree = treeRef.current;
+    const top = index * rowHeight;
+    const bottom = top + rowHeight;
+    if (top < tree.scrollTop) tree.scrollTop = top;
+    else if (bottom > tree.scrollTop + tree.clientHeight) tree.scrollTop = bottom - tree.clientHeight;
+    const frame = window.requestAnimationFrame(() => {
+      setTreeScrollTop(tree.scrollTop);
+      window.requestAnimationFrame(() => rowRefs.current.get(focusedKey)?.focus());
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedKey, rows, virtualTree]);
   const toggle = (id: string) => setExpanded((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   const openAttachment = async (id: string) => {
@@ -139,6 +176,7 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
   };
 
   const startAction = (kind: NonNullable<Action>['kind'], items: Item[] = []) => {
+    if (readOnly && kind !== 'new-vault') return;
     setAction({ kind, items: topLevel(items) });
     setName(kind === 'rename' ? items[0]?.label ?? '' : '');
     setRenameMode('keep');
@@ -148,6 +186,7 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
   };
 
   const moveItems = async (items: Item[], folderId: string | null) => {
+    if (readOnly) return;
     for (const item of topLevel(items)) {
       if (item.kind === 'folder') await workspace.moveFolder(item.id, folderId);
       if (item.kind === 'note') await workspace.moveNote(item.id, folderId);
@@ -158,6 +197,7 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
 
   const performAction = async () => {
     if (!action) return;
+    if (readOnly && action.kind !== 'new-vault') return;
     if (action.kind === 'new-vault') await workspace.createVault(name);
     if (action.kind === 'new-folder') await workspace.createFolder(workspace.selectedFolderId, name);
     if (action.kind === 'rename') {
@@ -194,6 +234,7 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
 
   const handleDrop = async (event: DragEvent, folderId: string | null) => {
     event.preventDefault();
+    if (readOnly) { setDropError('Your shared vault role cannot add or move files.'); return; }
     setDropError(null);
     try {
       const own = event.dataTransfer.getData('application/x-noor-note-items');
@@ -204,7 +245,7 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
         return;
       }
       const files = await collectDroppedFiles(event.dataTransfer);
-      if (files.length) onImported(await workspace.importFiles(files, folderId));
+      if (files.length) onImport(files, folderId);
     } catch {
       setDropError('Could not read the dropped files. Try the import button instead.');
     }
@@ -219,46 +260,45 @@ export function VaultExplorer({ workspace, focusFolder, onSelectNote, onCreateNo
       <button type="button" aria-label="Create vault" title="Create vault" onClick={() => startAction('new-vault')}><Plus size={16} /></button>
     </div>
     <div className={styles.tools}>
-      <button type="button" title="New note" aria-label="New note in selected folder" onClick={() => onCreateNote()}><FilePlus2 size={17} /></button>
-      <button type="button" title="New folder" aria-label="New folder" onClick={() => startAction('new-folder')}><FolderPlus size={17} /></button>
-      <button type="button" title="Import folder" aria-label="Import folder" onClick={() => folderPickerRef.current?.click()}><Upload size={17} /></button>
-      <button type="button" title="Upload image for OCR" aria-label="Open image OCR" onClick={() => onOpenOcr()}><ScanText size={17} /></button>
-      <button type="button" title="Upload audio or video for transcription" aria-label="Open transcription" onClick={() => onOpenTranscript()}><AudioLines size={17} /></button>
+      <button type="button" title="New note" aria-label="New note in selected folder" disabled={readOnly} onClick={() => onCreateNote()}><FilePlus2 size={17} /></button>
+      <button type="button" title="New folder" aria-label="New folder" disabled={readOnly} onClick={() => startAction('new-folder')}><FolderPlus size={17} /></button>
+      <button type="button" title="Import folder" aria-label="Import folder" disabled={readOnly} onClick={() => folderPickerRef.current?.click()}><Upload size={17} /></button>
+      <button type="button" title="Upload image for OCR" aria-label="Open image OCR" disabled={readOnly} onClick={() => onOpenOcr()}><ScanText size={17} /></button>
+      <button type="button" title="Upload audio or video for transcription" aria-label="Open transcription" disabled={readOnly} onClick={() => onOpenTranscript()}><AudioLines size={17} /></button>
       <button type="button" title="Trash" aria-label="Open Trash" onClick={onOpenTrash}><Trash2 size={17} /></button>
       <label className="sr-only" htmlFor="vault-sort">Sort files</label>
-      <select id="vault-sort" value={`${sortBy}:${sortDirection}`} onChange={(event) => { const [by, direction] = event.target.value.split(':'); void workspace.updateVaultSettings({ sortBy: by === 'updatedAt' ? 'updatedAt' : 'name', sortDirection: direction === 'desc' ? 'desc' : 'asc' }); }}>
+      <select id="vault-sort" value={`${sortBy}:${sortDirection}`} disabled={readOnly} onChange={(event) => { const [by, direction] = event.target.value.split(':'); void workspace.updateVaultSettings({ sortBy: by === 'updatedAt' ? 'updatedAt' : 'name', sortDirection: direction === 'desc' ? 'desc' : 'asc' }); }}>
         <option value="name:asc">Name A–Z</option><option value="name:desc">Name Z–A</option><option value="updatedAt:desc">Recently edited</option><option value="updatedAt:asc">Oldest edited</option>
       </select>
-      <input ref={(node) => { folderPickerRef.current = node; node?.setAttribute('webkitdirectory', ''); }} className="sr-only" tabIndex={-1} type="file" multiple aria-label="Import folder files" onChange={(event) => { if (event.target.files) void workspace.importFiles(event.target.files).then(onImported); event.target.value = ''; }} />
+      <input ref={(node) => { folderPickerRef.current = node; node?.setAttribute('webkitdirectory', ''); }} className="sr-only" tabIndex={-1} type="file" multiple disabled={readOnly} aria-label="Import folder files" onChange={(event) => { if (!readOnly && event.target.files) onImport(Array.from(event.target.files), workspace.selectedFolderId); event.target.value = ''; }} />
     </div>
     <div className={styles.root} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { void handleDrop(event, null); }}>
       <button type="button" className={workspace.selectedFolderId === null ? styles.rootSelected : ''} onClick={() => workspace.setSelectedFolderId(null)}><FolderOpen size={16} /> Vault root</button>
     </div>
     {dropError && <p role="alert" className={styles.empty}>{dropError}</p>}
-    <div className={styles.tree} role="tree" aria-label="Vault files" onKeyDown={onTreeKeyDown}>
-      {rows.map((item) => <ContextMenu key={item.key}>
+    <div ref={treeRef} className={`${styles.tree} ${virtualTree ? styles.virtualTree : ''}`} role={rows.length ? 'tree' : 'group'} aria-label="Vault files" tabIndex={virtualTree ? 0 : undefined} onScroll={virtualTree ? (event) => setTreeScrollTop(event.currentTarget.scrollTop) : undefined} onKeyDown={onTreeKeyDown}>
+      {virtualTree && <div aria-hidden="true" style={{ height: windowStart * rowHeight }} />}
+      {visibleRows.map((item) => <ContextMenu key={item.key}>
         <ContextMenuTrigger asChild>
           <button ref={(node) => { if (node) rowRefs.current.set(item.key, node); else rowRefs.current.delete(item.key); }} type="button" role="treeitem" aria-level={item.depth + 1} aria-selected={selected.has(item.key)} aria-expanded={item.kind === 'folder' ? expanded.has(item.id) : undefined}
             tabIndex={focusedKey === item.key || (!focusedKey && rows[0]?.key === item.key) ? 0 : -1} className={`${styles.row} ${selected.has(item.key) ? styles.selected : ''}`} style={{ paddingLeft: 10 + item.depth * 14 }}
-            onFocus={() => setFocusedKey(item.key)} onClick={(event) => activate(item, event)} onContextMenu={() => { if (!selected.has(item.key)) setSelected(new Set([item.key])); }} draggable
+            onFocus={() => setFocusedKey(item.key)} onClick={(event) => activate(item, event)} onContextMenu={() => { if (!selected.has(item.key)) setSelected(new Set([item.key])); }} draggable={!readOnly}
             onDragStart={(event) => { const keys = selected.has(item.key) ? [...selected] : [item.key]; event.dataTransfer.setData('application/x-noor-note-items', JSON.stringify(keys)); event.dataTransfer.effectAllowed = 'move'; }}
-            onDragOver={item.kind === 'folder' ? (event) => event.preventDefault() : undefined} onDrop={item.kind === 'folder' ? (event) => { void handleDrop(event, item.id); } : undefined}>
+            onDragOver={!readOnly && item.kind === 'folder' ? (event) => event.preventDefault() : undefined} onDrop={!readOnly && item.kind === 'folder' ? (event) => { void handleDrop(event, item.id); } : undefined}>
             {item.kind === 'folder' ? expanded.has(item.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} /> : <span className={styles.spacer} />}
             {item.kind === 'folder' ? <Folder size={16} /> : item.kind === 'note' ? <FileText size={16} /> : <File size={16} />}
             <span title={item.path}>{item.label}</span>
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          {item.kind === 'folder' && <><ContextMenuItem onSelect={() => { workspace.setSelectedFolderId(item.id); onCreateNote(item.id); }}><FilePlus2 size={15} /> New note here</ContextMenuItem><ContextMenuItem onSelect={() => { workspace.setSelectedFolderId(item.id); startAction('new-folder'); }}><FolderPlus size={15} /> New folder here</ContextMenuItem><ContextMenuItem onSelect={() => { void workspace.exportZip(item.path); }}><Download size={15} /> Export folder ZIP</ContextMenuItem></>}
-          {item.kind === 'note' && <ContextMenuItem onSelect={() => { void workspace.duplicateNote(item.id); }}><FilePlus2 size={15} /> Duplicate</ContextMenuItem>}
-          {item.kind === 'attachment' && workspace.attachments.some((attachment) => attachment.id === item.id && (isOcrImage(attachment) || isPdfAttachment(attachment))) && <ContextMenuItem onSelect={() => onOpenOcr(item.id)}><ScanText size={15} /> Extract text with OCR</ContextMenuItem>}
-          {item.kind === 'attachment' && workspace.attachments.some((attachment) => attachment.id === item.id && isTranscribable(attachment)) && <ContextMenuItem onSelect={() => onOpenTranscript(item.id)}><AudioLines size={15} /> Transcribe media</ContextMenuItem>}
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => startAction('rename', [item])}>Rename</ContextMenuItem>
-          <ContextMenuItem onSelect={() => startAction('move', itemsFor(item))}>Move…</ContextMenuItem>
-          <ContextMenuItem onSelect={() => startAction('delete', itemsFor(item))}><Trash2 size={15} /> Move to Trash</ContextMenuItem>
+          {item.kind === 'folder' && <>{!readOnly && <><ContextMenuItem onSelect={() => { workspace.setSelectedFolderId(item.id); onCreateNote(item.id); }}><FilePlus2 size={15} /> New note here</ContextMenuItem><ContextMenuItem onSelect={() => { workspace.setSelectedFolderId(item.id); startAction('new-folder'); }}><FolderPlus size={15} /> New folder here</ContextMenuItem></>}<ContextMenuItem onSelect={() => { void workspace.exportZip(item.path); }}><Download size={15} /> Export folder ZIP</ContextMenuItem></>}
+          {!readOnly && item.kind === 'note' && <ContextMenuItem onSelect={() => { void workspace.duplicateNote(item.id); }}><FilePlus2 size={15} /> Duplicate</ContextMenuItem>}
+          {!readOnly && item.kind === 'attachment' && workspace.attachments.some((attachment) => attachment.id === item.id && (isOcrImage(attachment) || isPdfAttachment(attachment))) && <ContextMenuItem onSelect={() => onOpenOcr(item.id)}><ScanText size={15} /> Extract text with OCR</ContextMenuItem>}
+          {!readOnly && item.kind === 'attachment' && workspace.attachments.some((attachment) => attachment.id === item.id && isTranscribable(attachment)) && <ContextMenuItem onSelect={() => onOpenTranscript(item.id)}><AudioLines size={15} /> Transcribe media</ContextMenuItem>}
+          {!readOnly && <><ContextMenuSeparator /><ContextMenuItem onSelect={() => startAction('rename', [item])}>Rename</ContextMenuItem><ContextMenuItem onSelect={() => startAction('move', itemsFor(item))}>Move…</ContextMenuItem><ContextMenuItem onSelect={() => startAction('delete', itemsFor(item))}><Trash2 size={15} /> Move to Trash</ContextMenuItem></>}
         </ContextMenuContent>
       </ContextMenu>)}
+      {virtualTree && <div aria-hidden="true" style={{ height: (rows.length - windowEnd) * rowHeight }} />}
       {!rows.length && <p className={styles.empty}>Drop Markdown or files here, or create a note.</p>}
     </div>
     <Dialog open={Boolean(action)} onOpenChange={(open) => { if (!open) setAction(null); }} title={action?.kind === 'new-vault' ? 'Create vault' : action?.kind === 'new-folder' ? 'Create folder' : action?.kind === 'rename' ? 'Rename item' : action?.kind === 'move' ? 'Move items' : 'Move to Trash'} description={action?.kind === 'delete' ? `${action.items.length} selected item${action.items.length === 1 ? '' : 's'} can be restored from Trash.` : undefined}>

@@ -12,7 +12,7 @@ interface Props {
   repository: VaultRepository;
   flushPending: () => Promise<void>;
   onClose: () => void;
-  onRestored: (note: VaultNote) => Promise<void>;
+  onRestored: (note: VaultNote, sourceRevisionId: string) => Promise<void>;
   onDuplicated: (note: VaultNote) => Promise<void>;
 }
 
@@ -53,7 +53,7 @@ export function VersionHistory({ noteId, repository, flushPending, onClose, onRe
     setBusy(true); setError(null);
     try {
       await flushPending();
-      if (action === 'restore') await onRestored(await repository.restoreRevision(noteId, selected.id, current.revision));
+      if (action === 'restore') await onRestored(await repository.restoreRevision(noteId, selected.id, current.revision), selected.id);
       else await onDuplicated(await repository.duplicateRevision(noteId, selected.id));
       onClose();
     } catch (caught) { setError(caught instanceof Error ? caught.message : `Could not ${action} revision`); setBusy(false); }

@@ -1,5 +1,9 @@
 # Local storage
 
+Public sites and pages are separate Postgres projection tables. Publication images use the private `noor-note-published` Supabase Storage bucket with RLS tied to the current snapshot. Original local Markdown and attachments remain canonical; publishing does not modify them. See [publishing.md](publishing.md).
+
+Private share snapshots and hashed session verifiers live in separate Postgres tables with no anonymous read grant. They are not stored in the public publishing tables or bucket. Original Markdown remains in the local vault. See [private-share-links.md](private-share-links.md).
+
 Voice recordings are ordinary attachments with optional start-time and duration metadata. The recorder keeps chunks only until Stop; saving passes the resulting Blob to the existing attachment store, which uses OPFS for larger files where available. Vault ZIP export/import preserves the audio file and recording metadata.
 Renaming from the voice-note dialog loads note bodies on demand, previews standard Markdown link changes, and commits the attachment path and note revisions in one IndexedDB transaction. A changed note or attachment rejects the preview.
 
@@ -10,6 +14,8 @@ Note composer previews carry every active note revision. Applying a plan validat
 Optional cloud sync uses a separate `noor-note-sync` IndexedDB database for account-scoped queue items, ledger versions, cursors, preferences, device ID, and attachment digests. This database contains whole queued note snapshots, so browser profile access can read queued Markdown. It is not part of vault ZIP export. If it is lost, the engine reconciles from the vault database; redacted permanent-deletion tombstones remain in the vault database. See [sync protocol](sync-protocol.md).
 
 Encrypted sync adds a `noor-note-encryption` IndexedDB database of wrapped vault-key profiles. A passphrase-derived key wraps the local vault key; a separate random recovery code wraps the same key in the encrypted cloud vault record. Unwrapped keys stay in tab memory while unlocked. This does not encrypt local note bodies, revisions, attachment bytes, queued records, or vault ZIPs. See [encryption](encryption.md).
+
+Collaborative notes add a `noor-note-collaboration` IndexedDB database of Yjs updates, unsent update IDs, and the highest fetched Postgres sequence per note. Each local update is journaled before upload. The log is plaintext because collaboration currently applies only to shared plaintext vaults. This local journal is not included in a vault ZIP; the exported Markdown reflects the last locally autosaved document. See [collaboration](collaboration.md).
 
 IndexedDB stores vaults, folders, note metadata, note bodies, attachment metadata, small attachment Blobs, revisions, structured objects, active-vault state, and case-insensitive path reservations. The tree query reads metadata only. Attachments of at least 1 MiB stream to OPFS when available; other browsers use IndexedDB Blobs. Blob reads are lazy. OPFS availability does not change vault behavior.
 
@@ -25,9 +31,15 @@ AI permissions are a browser-local preference under `noor-note.ai-policy.v1`. Th
 
 Create, rename, move, trash, restore, and permanent-delete methods enforce vault membership and path collisions. Folder operations update descendants. Trash preserves content and allows restore unless its former path has been reused. Empty Trash permanently removes items and attachment bytes. Deleting a vault hides it; Settings can restore it. ZIP import uses a separate vault and removes that vault on import failure. Multi-file loose imports are sequential; if a later file fails, earlier files remain imported and the UI reports the partial count.
 
+The Import Center previews text and ZIP entry metadata, then checks destination paths against vault summaries. Generic ZIP attachment bytes are extracted only during commit, one file at a time. Conflict plans are recomputed against the latest tree and note revisions before writing. A failure after a partial loose import does not roll back already written items. See [Import Center](import-center.md).
+
+The [Export Center](export-center.md) reads active local records after pending editor writes are flushed. Portable ZIPs preserve original Markdown paths and attachment bytes, while the native ZIP retains supported revision and structured records. A JSON archive includes base64 attachment bytes only up to a 32 MiB total limit; HTML inlines each available raster image only up to 5 MiB. Missing required ZIP/JSON attachment bytes fail the export. Generated files are plaintext local downloads.
+
+Explicit ZIP directory entries, including empty folders, are created through the vault folder repository. Imported JSON Canvas files become validated Canvas objects in the existing object store; file cards resolve to imported note and attachment IDs. Incompatible `.canvas` bytes are stored as attachments. The import report is generated in memory and downloaded on request; it is not stored in the vault. See [Obsidian-style vault import](obsidian-vault-import.md).
+
 The editor waits 650 ms after edits before saving. Pending writes are serialized and flushed before switching notes or vaults, imports, and destructive actions. A failed write keeps the draft and blocks those transitions. A small localStorage draft is retained for crash recovery; the selected note reloads it if newer than IndexedDB. The app warns on browser exit while dirty and on estimated storage use above 90%. These controls reduce loss but are not a backup. Export ZIP regularly; clearing browser data can erase IndexedDB and OPFS.
 
-Revision numbers detect competing-tab saves of a note, but the app has no live cross-tab notification or merge UI. ZIP export is manual and may capture changes made by another tab during export; use one tab for a reliable backup. Connected folders are also manual one-way exports. The service worker precaches the app shell and bundled OCR and speech runtimes; the speech model is downloaded and browser cached on first use.
+Revision numbers detect competing-tab saves of a note, but the app has no live cross-tab notification or merge UI. ZIP export is manual and may capture changes made by another tab during export; use one tab for a reliable backup. Connected folders are also manual one-way exports. The service worker precaches the public app shell; bundled OCR and speech runtimes cache after first use, while the speech model downloads into a separate browser cache. See [PWA](pwa.md).
 
 Tag rename, merge, and reference deletion first build a preview from active note bodies. The commit verifies the previewed vault note set and revision numbers, then writes changed Markdown bodies, metadata summaries, and revision snapshots in one IndexedDB transaction. A concurrent edit rejects the operation and requires a fresh preview. Property panel saves use the ordinary note save path and create a manual checkpoint. Property templates use the generic structured-object table and are included in full-vault ZIP exports.
 
@@ -36,6 +48,10 @@ Before future schema changes, add a Dexie migration, a migration test with a pre
 The offline search index is session memory in a Web Worker. The first query reads note bodies from IndexedDB in batches; subsequent queries compare `NoteEntry.revision` values and read only changed notes. Deletions and vault switches remove stale index entries. Search preferences use localStorage per vault and are separate from portable vault data. The worker script is precached with the app shell.
 
 Base records are validated objects in the IndexedDB generic-object table. Their saved queries, view layouts, filters, sorting, grouping, fields, and column widths are included in full-vault ZIP exports. A Base does not duplicate note bodies. Editing a cell changes the note's YAML frontmatter through the existing revisioned save path; moving a Kanban card to a folder uses the existing note move method. Folder ZIPs omit Base records.
+
+Base form definitions share the Base record. Submissions use the repository's path reservation and initial revision transaction. Attachment bytes use the existing binary store; a failed note creation removes attachments added by that submission. Full-vault ZIP import remaps the form's destination folder and template note references.
+
+Study cards and review histories use validated generic objects in the vault IndexedDB database. Reviews update a card object after checking its last update timestamp. Full-vault and folder ZIP exports include cards only when the source note is included; ZIP import assigns new card IDs and remaps source note IDs. Structured-object cloud sync does not currently include study cards.
 
 Named Workspace records use the same IndexedDB object table. Layout snapshots are versioned and validated before load. The live layout and startup Workspace ID are vault-scoped localStorage entries; named snapshots are included in full-vault ZIPs with note, Base, Canvas, and folder references remapped on import. Folder ZIPs omit Workspaces. Missing resources are pruned when a snapshot loads.
 
@@ -53,6 +69,17 @@ Task summaries are stored with note entries so the dashboard does not load every
 
 Calendar reads the same note-entry summaries. Event creation writes a regular Markdown note with validated YAML metadata. A date move flushes pending editor writes, reloads the latest note, checks the old property date, updates YAML while preserving unrelated fields, and saves one manual revision. Task date moves use the task engine's source-line edit. No calendar storage migration is needed. See [calendar](calendar.md).
 
+Dashboard layouts use validated vault-scoped objects in the existing generic IndexedDB object table. Widgets store presentation settings and references only; note bodies remain in their existing stores. Full-vault ZIP archives include dashboards and remap Base references during import. Writing statistics and unlinked-mention scans read bodies sequentially only after a user request. See [dashboards](dashboards.md).
+
 Semantic vectors live in a separate `noor-note-semantic` IndexedDB database, with vault-scoped note revision records and passage records. Passage vectors are derived from Markdown and can be removed and rebuilt without changing vault data. Neither vectors nor model files are included in vault ZIPs or the note storage schema. The browser caches downloaded model files independently; clearing site data can remove both the vault and the derived cache, so export the vault before clearing browser storage. A model or chunk version change causes re-embedding on the next semantic search. See [search](search.md#semantic-and-hybrid-search).
 
 Optional vault chat history lives in `noor-note-chats`, a separate IndexedDB database keyed by session UUID and vault UUID. Saving is off by default; an unsaved conversation remains in component memory. Saved sessions include messages and source references, can be deleted per chat or per vault, and can be exported as JSON. Full-vault ZIP exports do not include chat sessions. Clearing browser data removes them unless a chat JSON export was downloaded. See [vault chat](vault-chat.md).
+
+Incoming browser clips are staged in a separate `noor-note-clip-inbox` IndexedDB database by one-time ticket UUID. The extension's temporary copy is kept in its browser storage only until the app validates and stages the draft, then acknowledged and removed; stale unacknowledged copies expire after 24 hours. Saving creates an ordinary revisioned note or attachment in the vault and removes the staged draft. Unsaved drafts are outside vault ZIP export and can be discarded in the review screen. See [web clipper](web-clipper.md).
+## Local plugin storage
+
+Installed plugin bundles, enabled state, grants, and plugin-scoped settings use the separate `noor-note-plugins` IndexedDB database. They are device-local and excluded from vault ZIP export. Disabling a plugin closes its runtime; removing it also deletes its settings. Vault notes remain in the existing vault repository, and a plugin can reach them only through granted, validated host requests.
+
+## Local appearance storage
+
+The built-in Light/Dark/System preference uses `noor-note-theme` in localStorage. Installed color packages, the active local theme ID, and validated CSS snippets use `noor-note-appearance`. These small visual settings are device-local, separate from vault objects, and excluded from vault ZIP and cloud sync. Import size and stored-state limits prevent appearance data from growing without bound. See [Themes and CSS snippets](themes.md).

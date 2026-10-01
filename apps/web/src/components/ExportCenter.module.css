@@ -1,0 +1,11 @@
+.dialog:global(.nn-dialog) { width: min(44rem, calc(100vw - 1.5rem)); max-height: 92dvh; overflow-y: auto; }
+.intro { color: var(--nn-text-muted); line-height: 1.5; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .75rem; margin: 1rem 0; }
+.fields label { display: grid; gap: .35rem; font-size: .9rem; }
+.fields select { min-height: 2.5rem; border: 1px solid var(--nn-border); border-radius: .4rem; background: var(--nn-surface); color: var(--nn-text); }
+.report { border: 1px solid var(--nn-border); border-radius: .6rem; padding: 1rem; background: var(--nn-surface-soft); }
+.report h3 { margin: 0 0 .75rem; }.report ul { margin: .35rem 0 1rem; padding-left: 1.3rem; }.report li { margin: .25rem 0; line-height: 1.45; }.report p { font-weight: 600; }
+.actions { display: flex; justify-content: flex-end; gap: .7rem; border-top: 1px solid var(--nn-border); padding-top: 1rem; margin-top: 1rem; }
+.actions button { min-height: 2.5rem; border: 1px solid var(--nn-border); border-radius: .5rem; padding: .45rem .85rem; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; }
+.actions button:last-child { background: var(--nn-accent-solid); color: var(--nn-on-accent); border-color: var(--nn-accent-solid); }.actions button:disabled { opacity: .5; cursor: default; }
+.error { color: var(--nn-danger); }

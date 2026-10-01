@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '@noor-note/ui';
 import { noteActions, planNoteActionEdit, prepareNoteAction, type AiGateway, type AiRequestPlan, type NoteActionEdit, type NoteActionId, type NoteActionPlacement, type NoteActionSelection, type NoteActionSource, type PreparedNoteAction } from '@noor-note/ai';
+import { studyCandidatesFromMarkdown, type StudyCandidate } from '@noor-note/core';
 import { aiGateway } from '../lib/ai-runtime';
 import { currentAiPolicy } from '../lib/ai-policy-storage';
 import styles from './AiNoteActions.module.css';
@@ -14,12 +15,14 @@ interface Props {
   onApplyTitle: (source: NoteActionSource, title: string) => boolean;
   onUndoEdit: (noteId: string, expectedMarkdown: string) => boolean;
   onUndoTitle: (noteId: string, expectedTitle: string, previousTitle: string) => boolean;
+  onSaveStudyCards?: (source: NoteActionSource, candidates: StudyCandidate[]) => Promise<string[]>;
+  onUndoStudyCards?: (ids: string[]) => Promise<void>;
   gateway?: AiGateway;
 }
 
-type Applied = { kind: 'markdown'; markdown: string } | { kind: 'title'; title: string; previousTitle: string };
+type Applied = { kind: 'markdown'; markdown: string } | { kind: 'title'; title: string; previousTitle: string } | { kind: 'study'; ids: string[] };
 
-export function AiNoteActions({ action, source, selection, onClose, onApplyEdit, onApplyTitle, onUndoEdit, onUndoTitle, gateway = aiGateway }: Props) {
+export function AiNoteActions({ action, source, selection, onClose, onApplyEdit, onApplyTitle, onUndoEdit, onUndoTitle, onSaveStudyCards, onUndoStudyCards, gateway = aiGateway }: Props) {
   const [chosen, setChosen] = useState<NoteActionId>(action);
   const [language, setLanguage] = useState('');
   const [reviewPlan, setReviewPlan] = useState<AiRequestPlan | null>(null);
@@ -74,8 +77,26 @@ export function AiNoteActions({ action, source, selection, onClose, onApplyEdit,
       setError(null);
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not apply the suggestion.'); }
   };
-  const undo = () => {
+  const saveStudyCards = async () => {
+    if (!prepared || !onSaveStudyCards || !output.trim()) return;
+    if (source.id !== prepared.content[0]?.noteId || source.markdown !== prepared.sourceMarkdown || source.title !== prepared.sourceTitle) { setError('The note changed after the request. Generate the suggestion again.'); return; }
+    const candidates = studyCandidatesFromMarkdown(output).map((item) => ({ ...item, sourceKind: 'ai' as const, sourceLine: null }));
+    if (!candidates.length) { setError('No Q::/A:: study cards were found. Edit the suggestion into that format first.'); return; }
+    setBusy(true); setError(null);
+    try { const ids = await onSaveStudyCards(source, candidates); if (!ids.length) throw new Error('These study cards already exist.'); setApplied({ kind: 'study', ids }); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not save study cards.'); }
+    finally { setBusy(false); }
+  };
+  const undo = async () => {
     if (!applied) return;
+    if (applied.kind === 'study') {
+      if (!onUndoStudyCards) return;
+      setBusy(true);
+      try { await onUndoStudyCards(applied.ids); setApplied(null); setError(null); }
+      catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not remove study cards.'); }
+      finally { setBusy(false); }
+      return;
+    }
     const ok = applied.kind === 'title' ? onUndoTitle(source.id, applied.title, applied.previousTitle) : onUndoEdit(source.id, applied.markdown);
     if (!ok) { setError('The note changed after the AI edit. Use the editor history or inspect the latest content before undoing.'); return; }
     setApplied(null); setError(null);
@@ -96,13 +117,13 @@ export function AiNoteActions({ action, source, selection, onClose, onApplyEdit,
       {reviewPlan && <section className={styles.review} aria-label="AI request review"><h3>Review this request</h3><dl><dt>Provider</dt><dd>{reviewPlan.provider.name} · {reviewPlan.provider.model}</dd><dt>Destination</dt><dd>{reviewPlan.provider.execution === 'onDevice' ? 'This device; no note text sent to a server' : reviewPlan.provider.recipient}</dd><dt>Scope</dt><dd>{reviewPlan.scope.kind} · {source.path}</dd><dt>Instruction</dt><dd>{reviewPlan.prompt}</dd></dl><strong>Exact note text supplied</strong><pre>{reviewPlan.content.map((item) => item.markdown).join('\n')}</pre><div className={styles.buttons}><button type="button" onClick={() => { resolveReview.current?.(false); resolveReview.current = null; }}>Decline</button><button type="button" onClick={approve}>Approve and generate</button></div></section>}
       {busy && !reviewPlan && <p role="status">Loading or running the local model…</p>}
       {output && !applied && <section className={styles.result} aria-label="AI suggestion preview"><h3>Suggestion preview</h3><p className={styles.hint}>Generated text can be inaccurate. Edit and review it before applying.</p><textarea aria-label="Edit AI suggestion" value={output} onChange={(event) => setOutput(event.target.value)} rows={10} /><details><summary>Planned change</summary>{preview && 'title' in preview ? <p>Title: {source.title} → {preview.title}</p> : preview ? <div className={styles.diff}><div><strong>Before</strong><pre>{prepared?.sourceMarkdown}</pre></div><div><strong>After</strong><pre>{preview.after}</pre></div></div> : <p>Review the suggestion text.</p>}</details></section>}
-      {applied && <p role="status" className={styles.success}>Suggestion applied to the local note. You can undo this change.</p>}
+      {applied && <p role="status" className={styles.success}>{applied.kind === 'study' ? `${applied.ids.length} study cards saved locally. You can undo this change.` : 'Suggestion applied to the local note. You can undo this change.'}</p>}
       {error && <p role="alert" className={styles.error}>{error}</p>}
       <div className={styles.buttons}>
         <button type="button" onClick={cancel}>{busy ? 'Cancel request' : 'Close'}</button>
         {!busy && !output && !applied && <button type="button" disabled={!provider || policy.mode !== 'explicit' || !policy.allow.currentNote || selected.selectionRequired && !selection} onClick={() => { void request(); }}>Review request</button>}
-        {output && !applied && <><button type="button" onClick={reject}>Reject</button><button type="button" onClick={() => apply(prepared?.placement ?? 'append')}>Accept</button>{prepared?.placement !== 'title' && <button type="button" onClick={() => apply('insert-below')}>Insert below</button>}{selection && prepared?.placement !== 'title' && <button type="button" onClick={() => apply('replace')}>Replace selection</button>}</>}
-        {applied && <button type="button" onClick={undo}>Undo</button>}
+        {output && !applied && <><button type="button" onClick={reject}>Reject</button><button type="button" onClick={() => apply(prepared?.placement ?? 'append')}>Accept</button>{chosen === 'generate-flashcards' && onSaveStudyCards && <button type="button" disabled={busy} onClick={() => { void saveStudyCards(); }}>Add as study cards</button>}{prepared?.placement !== 'title' && <button type="button" onClick={() => apply('insert-below')}>Insert below</button>}{selection && prepared?.placement !== 'title' && <button type="button" onClick={() => apply('replace')}>Replace selection</button>}</>}
+        {applied && <button type="button" disabled={busy} onClick={() => { void undo(); }}>Undo</button>}
       </div>
     </div>
   </Dialog>;

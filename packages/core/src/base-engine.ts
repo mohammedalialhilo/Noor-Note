@@ -2,12 +2,22 @@ import { z } from 'zod';
 import { baseSchema, propertyTypeSchema, safeFileStem, type Base, type PropertyValue, type VaultNote } from './vault-domain';
 import type { MarkdownTask } from './markdown';
 import { compileFormula, type FormulaValue } from './formula-engine';
+import { baseFormSchema, newBaseForm } from './form-engine';
 
 const fieldName = z.string().trim().min(1).max(100);
 const optionalField = fieldName.nullable();
 const dateString = z.iso.date();
-export const baseViewKindSchema = z.enum(['table', 'list', 'cards', 'gallery', 'kanban', 'calendar', 'map', 'timeline', 'gantt']);
+export const baseViewKindSchema = z.enum(['table', 'list', 'cards', 'gallery', 'kanban', 'calendar', 'map', 'timeline', 'gantt', 'chart']);
 export type BaseViewKind = z.infer<typeof baseViewKindSchema>;
+export const baseChartSchema = z.object({
+  kind: z.enum(['bar', 'line', 'area', 'pie', 'donut', 'scatter', 'histogram', 'number']),
+  groupField: fieldName, valueField: optionalField, xField: fieldName, yField: fieldName,
+  aggregation: z.enum(['count', 'sum', 'average', 'minimum', 'maximum']),
+  sort: z.enum(['labelAsc', 'labelDesc', 'valueAsc', 'valueDesc']),
+  limit: z.number().int().min(1).max(100), bins: z.number().int().min(2).max(30),
+}).strict();
+export type BaseChartConfig = z.infer<typeof baseChartSchema>;
+export const defaultBaseChart: BaseChartConfig = { kind: 'bar', groupField: 'folder', valueField: null, xField: 'property:x', yField: 'property:y', aggregation: 'count', sort: 'labelAsc', limit: 30, bins: 10 };
 export const baseFilterSchema = z.object({ field: fieldName, operator: z.enum(['equals', 'contains', 'exists', 'greater', 'less']), value: z.string().max(500).default('') }).strict();
 export const baseFormulaSchema = z.object({ id: z.uuid(), name: fieldName, expression: z.string().trim().min(1).max(500) }).strict();
 export const baseAggregateSchema = z.object({ id: z.uuid(), operation: z.enum(['count', 'sum', 'average', 'minimum', 'maximum', 'unique']), field: fieldName.nullable(), label: fieldName }).strict();
@@ -35,8 +45,10 @@ export const baseViewSchema = z.object({
   map: z.object({ locationField: fieldName }).strict().default({ locationField: 'property:location' }),
   timeline: z.object({ startField: fieldName, endField: fieldName, groupField: optionalField }).strict().default({ startField: 'createdAt', endField: 'updatedAt', groupField: null }),
   gantt: z.object({ startField: fieldName, endField: fieldName, dependencyField: optionalField, progressField: optionalField }).strict().default({ startField: 'createdAt', endField: 'updatedAt', dependencyField: null, progressField: null }),
+  chart: baseChartSchema.default(defaultBaseChart),
 }).strict();
-export const baseDefinitionSchema = z.object({ version: z.literal(1), query: baseQuerySchema, formulas: z.array(baseFormulaSchema).max(50).default([]), views: z.array(baseViewSchema).min(1).max(50), activeViewId: z.uuid() }).strict().refine((value) => value.views.some((view) => view.id === value.activeViewId), { message: 'Active Base view does not exist', path: ['activeViewId'] }).refine((value) => new Set(value.formulas.map((formula) => formula.name.toLocaleLowerCase())).size === value.formulas.length, { message: 'Formula names must be unique', path: ['formulas'] });
+const legacyBaseForm = baseFormSchema.parse({ targetFolderId: null, filenameTemplate: '{{title}}', noteTemplateId: null, defaultProperties: {}, fields: [{ id: '00000000-0000-4000-8000-000000000001', key: 'title', label: 'Title', kind: 'text', required: true, minimum: null, maximum: '200', pattern: null, options: [] }] });
+export const baseDefinitionSchema = z.object({ version: z.literal(1), query: baseQuerySchema, formulas: z.array(baseFormulaSchema).max(50).default([]), views: z.array(baseViewSchema).min(1).max(50), activeViewId: z.uuid(), form: baseFormSchema.default(legacyBaseForm) }).strict().refine((value) => value.views.some((view) => view.id === value.activeViewId), { message: 'Active Base view does not exist', path: ['activeViewId'] }).refine((value) => new Set(value.formulas.map((formula) => formula.name.toLocaleLowerCase())).size === value.formulas.length, { message: 'Formula names must be unique', path: ['formulas'] });
 export type BaseQuery = z.infer<typeof baseQuerySchema>;
 export type BaseFilter = z.infer<typeof baseFilterSchema>;
 export type BaseFormula = z.infer<typeof baseFormulaSchema>;
@@ -77,6 +89,7 @@ export function removeBaseFormula(definition: BaseDefinition, id: string): BaseD
       map: { locationField: view.map.locationField === field ? 'property:location' : view.map.locationField },
       timeline: { startField: view.timeline.startField === field ? 'createdAt' : view.timeline.startField, endField: view.timeline.endField === field ? 'updatedAt' : view.timeline.endField, groupField: view.timeline.groupField === field ? null : view.timeline.groupField },
       gantt: { startField: view.gantt.startField === field ? 'createdAt' : view.gantt.startField, endField: view.gantt.endField === field ? 'updatedAt' : view.gantt.endField, dependencyField: view.gantt.dependencyField === field ? null : view.gantt.dependencyField, progressField: view.gantt.progressField === field ? null : view.gantt.progressField },
+      chart: { ...view.chart, groupField: view.chart.groupField === field ? 'folder' : view.chart.groupField, valueField: view.chart.valueField === field ? null : view.chart.valueField, xField: view.chart.xField === field ? 'property:x' : view.chart.xField, yField: view.chart.yField === field ? 'property:y' : view.chart.yField },
     })),
   });
 }
@@ -86,7 +99,7 @@ export function newBaseView(kind: BaseViewKind, name = kind[0]!.toUpperCase() + 
 }
 export function newBaseDefinition(): BaseDefinition {
   const view = newBaseView('table');
-  return baseDefinitionSchema.parse({ version: 1, query: {}, views: [view], activeViewId: view.id });
+  return baseDefinitionSchema.parse({ version: 1, query: {}, views: [view], activeViewId: view.id, form: newBaseForm() });
 }
 export function newBase(vaultId: string, title: string, existing: Base[]): Base {
   const trimmed = title.trim();

@@ -13,7 +13,7 @@ describe('graph worker', () => {
     const dispatch = (data: unknown) => worker.onmessage?.({ data } as MessageEvent<unknown>);
     const vaultId = crypto.randomUUID();
     const now = new Date().toISOString();
-    const notes: NoteEntry[] = Array.from({ length: 650 }, (_, index) => ({ id: crypto.randomUUID(), vaultId, folderId: null, path: `/Note ${index}.md`, title: `Note ${index}`, excerpt: '', tags: [], links: [], tasks: [], taskCount: 0, createdAt: now, updatedAt: now, deletedAt: null, trashGroupId: null, aliases: [], properties: {}, revision: 1, checksum: '0'.repeat(64) }));
+    const notes: NoteEntry[] = Array.from({ length: 650 }, (_, index) => ({ id: crypto.randomUUID(), vaultId, folderId: null, path: `/Note ${index}.md`, title: `Note ${index}`, excerpt: '', tags: [], links: [], tasks: [], taskCount: 0, createdAt: now, updatedAt: now, deletedAt: null, trashGroupId: null, aliases: [], properties: {}, collaborative: false, revision: 1, checksum: '0'.repeat(64) }));
     dispatch({ id: 1, kind: 'update', notes: notes.slice(0, -1).map((note, index) => ({ id: note.id, markdown: `[[Next]]<!-- noor-note-id:${notes[index + 1]!.id} -->` })), removed: [] });
     dispatch({ id: 2, kind: 'build', notes, attachments: [] });
     const first = responses.at(-1);

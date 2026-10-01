@@ -3,14 +3,16 @@ import { CommandRegistry, commandRegistry, type CommandContext } from '../src/li
 
 function context(): CommandContext {
   const noop = () => undefined;
-  return { hasNote: false, hasEditor: false, hasTab: false, hasClosedTab: false, hasSplit: false, openQuickSwitcher: noop, openPalette: noop, createNote: noop, focusSearch: noop, showNotes: noop, showTasks: noop, showTags: noop, showGlobalGraph: noop, showLocalGraph: noop, showBases: noop, showCanvas: noop, showTrash: noop, showSettings: noop, insertTemplate: noop, createFromTemplate: noop, applyTemplateProperties: noop, previewTemplate: noop, createDailyNote: noop, showPeriodNotes: noop, importFiles: noop, exportVault: noop, closeTab: noop, restoreTab: noop, nextTab: noop, previousTab: noop, pinTab: noop, splitVertical: noop, splitHorizontal: noop, closePane: noop, duplicateNote: noop, openAudioRecorder: noop, openNoteComposer: noop, openAiNoteAction: noop, manageWorkspaces: noop, saveWorkspace: noop, loadWorkspace: noop, duplicateWorkspace: noop, renameWorkspace: noop, deleteWorkspace: noop, setStartupWorkspace: noop, manageBookmarks: noop, bookmarkCurrentNote: noop, toggleFavoriteNote: noop, togglePinnedNote: noop, runEditorAction: noop };
+  return { hasNote: false, hasEditor: false, hasTab: false, hasClosedTab: false, hasSplit: false, openQuickSwitcher: noop, openPalette: noop, createNote: noop, focusSearch: noop, showNotes: noop, showDashboard: noop, showTasks: noop, showStudy: noop, showActivity: noop, showTags: noop, showGlobalGraph: noop, showLocalGraph: noop, showBases: noop, showCanvas: noop, showTrash: noop, showSettings: noop, insertTemplate: noop, createFromTemplate: noop, applyTemplateProperties: noop, previewTemplate: noop, createDailyNote: noop, showPeriodNotes: noop, importFiles: noop, exportVault: noop, closeTab: noop, restoreTab: noop, nextTab: noop, previousTab: noop, pinTab: noop, splitVertical: noop, splitHorizontal: noop, closePane: noop, duplicateNote: noop, openAudioRecorder: noop, openNoteComposer: noop, openAiNoteAction: noop, manageWorkspaces: noop, saveWorkspace: noop, loadWorkspace: noop, duplicateWorkspace: noop, renameWorkspace: noop, deleteWorkspace: noop, setStartupWorkspace: noop, manageBookmarks: noop, bookmarkCurrentNote: noop, toggleFavoriteNote: noop, togglePinnedNote: noop, runEditorAction: noop };
 }
 
 describe('command registry', () => {
   it('registers core navigation, file, tab, and pane actions', () => {
     expect(commandRegistry.get('navigation.quick-switcher')?.defaultShortcut).toBe('Mod+O');
     expect(commandRegistry.get('navigation.command-palette')?.defaultShortcut).toBe('Mod+P');
-    expect(commandRegistry.get('files.export')?.name).toBe('Export vault ZIP');
+    expect(commandRegistry.get('navigation.activity')?.name).toBe('Show shared activity');
+    expect(commandRegistry.get('files.export')?.name).toBe('Open Export Center');
+    expect(commandRegistry.get('editor.present')?.name).toBe('Present current note');
     expect(commandRegistry.get('tabs.close')?.available?.(context())).toBe(false);
   });
 

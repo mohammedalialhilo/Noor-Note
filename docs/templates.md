@@ -32,4 +32,6 @@ Status: {{if(eq(property("priority"), "High"), "Review", "Open")}}
 
 The allowlist is `dateFormat`, `upper`, `lower`, `trim`, `titleCase`, `property`, `if`, `eq`, `ne`, `and`, `or`, `not`, and `contains`. `property("name")` reads a property of the target note; structured values are rendered as JSON text. Functions have no file, network, or JavaScript execution access. Invalid expressions stop the action and show an error; they are not silently written as raw syntax.
 
+The same interpreter also supports `formatDate(value, pattern)`, `replace(value, search, replacement)`, `truncate(value, length)`, `default(value, fallback)`, `formatProperty(name, separator, fallback)`, and `yaml(value)`. The optional separator defaults to `, `; the optional fallback defaults to empty text. `yaml` emits a quoted YAML-compatible scalar for untrusted metadata. Web clip templates add capture-specific variables and are described in [Web clipper](web-clipper.md#clip-templates).
+
 Templates are local to each vault. ZIP import gives the new vault fresh IDs and remaps the template folder, source note, folder, and Base rules. Folder-only ZIP export includes Markdown source notes but does not preserve whole-vault template rule settings.

@@ -5,6 +5,7 @@ import { propertyValueSchema, templateSettingsSchema, type Folder, type Property
 export interface TemplateContext {
   title: string; filename: string; folder: string; selection?: string; clipboard?: string;
   properties?: Readonly<Record<string, PropertyValue>>; now?: Date;
+  clipVariables?: Readonly<Partial<Record<'url' | 'author' | 'content' | 'highlights' | 'published' | 'domain' | 'description', string>>>;
 }
 type Value = string | number | boolean | null;
 type TemplateNote = Pick<VaultNote, 'id' | 'folderId'>;
@@ -36,6 +37,15 @@ function formatDate(date: Date, pattern: string): string {
   return pattern.replace(/yyyy|MMMM|MMM|yy|MM|dd|HH|mm|M|d/gu, (part) => parts[part] ?? part);
 }
 
+function parseTemplateDate(value: string): Date {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
+  if (!Number.isFinite(date.getTime()) || (dateOnly && localDateStamp(date) !== value)) throw new Error('Invalid template date');
+  return date;
+}
+
 class ExpressionReader {
   private offset = 0;
   private steps = 0;
@@ -60,10 +70,20 @@ class ExpressionReader {
     const arity = (min: number, max = min) => { if (args.length < min || args.length > max) throw new Error(`${name} expects ${min === max ? min : `${min}-${max}`} arguments`); };
     switch (name) {
       case 'dateFormat': arity(1); return formatDate(this.now, string(0));
+      case 'formatDate': arity(2); return string(0) ? formatDate(parseTemplateDate(string(0)), string(1)) : '';
       case 'upper': arity(1); return string(0).toLocaleUpperCase();
       case 'lower': arity(1); return string(0).toLocaleLowerCase();
       case 'trim': arity(1); return string(0).trim();
       case 'titleCase': arity(1); return string(0).toLocaleLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
+      case 'default': arity(2); return args[0] === null || args[0] === '' ? args[1]! : args[0]!;
+      case 'replace': arity(3); if (!string(1) || string(1).length > 200) throw new Error('Invalid replacement text'); return string(0).replaceAll(string(1), string(2));
+      case 'truncate': {
+        arity(2);
+        const length = args[1];
+        if (typeof length !== 'number' || !Number.isInteger(length) || length < 0 || length > 10_000) throw new Error('Invalid truncation length');
+        return string(0).length > length ? `${string(0).slice(0, length)}…` : string(0);
+      }
+      case 'yaml': arity(1); return JSON.stringify(args[0] === null ? '' : args[0]);
       case 'property': {
         arity(1);
         const key = string(0);
@@ -72,6 +92,15 @@ class ExpressionReader {
         if (value === undefined || value === null) return null;
         if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
         return JSON.stringify(value);
+      }
+      case 'formatProperty': {
+        arity(1, 3);
+        const key = string(0);
+        if (!key || key.length > 100 || key === '__proto__' || key === 'constructor' || key === 'prototype') throw new Error('Invalid property name');
+        const value = Object.hasOwn(this.properties, key) ? this.properties[key] : null;
+        if (value === undefined || value === null || value === '') return args.length === 3 ? string(2) : '';
+        if (Array.isArray(value)) return value.map(String).join(args.length >= 2 ? string(1) : ', ');
+        return typeof value === 'object' ? JSON.stringify(value) : String(value);
       }
       case 'if': arity(3); return args[0] ? args[1]! : args[2]!;
       case 'eq': arity(2); return args[0] === args[1];
@@ -134,6 +163,9 @@ export function renderTemplate(markdown: string, context: TemplateContext): stri
     title: context.title, filename: context.filename, folder: context.folder, selection: context.selection ?? '', clipboard: context.clipboard ?? '',
     year: String(now.getFullYear()), month: String(now.getMonth() + 1).padStart(2, '0'), day: String(now.getDate()).padStart(2, '0'),
   };
+  if (context.clipVariables) for (const key of ['url', 'author', 'content', 'highlights', 'published', 'domain', 'description'] as const) {
+    values[key] = context.clipVariables[key] ?? '';
+  }
   let count = 0;
   const rendered = markdown.replace(token, (_whole, raw: string) => {
     if (++count > 1000) throw new Error('Template has too many expressions');

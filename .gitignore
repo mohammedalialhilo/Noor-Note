@@ -15,6 +15,9 @@ test-results/
 .DS_Store
 Thumbs.db
 apps/web/public/search-worker.js
+apps/web/public/publish-mermaid.js
+apps/web/public/publish-katex.css
+apps/web/public/fonts/
 apps/web/public/graph-worker.js
 apps/web/public/transcription-worker.js
 apps/web/public/ai-note-worker.js

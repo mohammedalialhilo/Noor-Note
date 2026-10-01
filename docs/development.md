@@ -1,5 +1,11 @@
 # Development
 
+Large-vault benchmark instructions, measured results, and current limits are in [performance.md](performance.md). Keep the opt-in benchmark out of routine unit test timing; use `NOOR_PERF=1` when profiling changes to storage, indexing, tree rendering, graph layout, Bases, tasks, or sync.
+
+Publishing requires the Supabase publishing migration and the two public Supabase environment values. `pnpm --filter @noor-note/web build` creates the public Mermaid and KaTeX assets. Netlify Dev is needed to exercise `/p/*` locally; `next dev` does not run the Netlify Function. The embedded PostgreSQL test `apps/web/test/publishing.test.ts` checks anonymous reads, role-gated writes, and asset revocation.
+
+Private links require `202609300003_noor_private_shares.sql` and PostgreSQL `pgcrypto` in the `extensions` schema. The `/s/*` route uses the same public Supabase environment values. Run `apps/web/test/private-shares.test.ts` for database access checks and `private-share-route.test.ts` for the function gate and cookie flow. Netlify Dev is needed to exercise the route locally.
+
 Use Node.js 24, Corepack, and pnpm from the repository root:
 
 ```bash
@@ -8,6 +14,12 @@ corepack pnpm dev
 ```
 
 Open `http://localhost:3000`. Browser origins have separate local vaults. Export a ZIP before clearing site data.
+
+The [Export Center](export-center.md) uses `apps/web/src/lib/export-center.ts` for portability reports and artifact builders. Keep native vault ZIP round trips in `vault-archive.ts`; portable Markdown ZIPs must preserve source paths and bytes. Test all output formats, missing attachment handling, and report wording when adding an adapter. PDF is currently a browser print flow, and JSON archive import is not implemented.
+
+Plugin authors can create a validated local JSON bundle using `@noor-note/plugin-sdk` and install it from Settings → Plugins. Developer mode allows loading a local development bundle and, where file handles are supported, reloading edits from disk during the current app session. The bundle format, permission model, manager controls, and current extension points are documented in [Plugin SDK](plugins.md). Plugin bundles are device-local and are not included in vault ZIP exports.
+
+Theme authors can start with [Amber Paper](../examples/themes/amber.noor-theme.json), then install the JSON package from Settings → Appearance. Accepted tokens, CSS snippet syntax, storage behavior, and security limits are documented in [Themes and CSS snippets](themes.md).
 
 Run the full phase gate:
 
@@ -18,7 +30,7 @@ corepack pnpm test
 corepack pnpm build
 ```
 
-Vitest covers core parsing and editor Markdown transforms, UI primitives, IndexedDB migrations and file operations, ZIP round trips, editor layout actions, settings persistence, and rendered/editor components. The production build statically exports `apps/web/out` and generates the versioned offline shell service worker. `.github/workflows/ci.yml` runs the four checks. `netlify.toml` publishes `apps/web/out`.
+Vitest covers core parsing and editor Markdown transforms, UI primitives, IndexedDB migrations and file operations, ZIP round trips, editor layout actions, settings persistence, and rendered/editor components. The production build statically exports `apps/web/out` and generates the versioned offline shell service worker from an explicit public asset allowlist. `.github/workflows/ci.yml` runs the four checks. `netlify.toml` publishes `apps/web/out` and prevents caching of `sw.js`. See [PWA](pwa.md).
 
 Place schemas and pure Markdown transforms in `packages/core`; persistence behind `VaultRepository` in `packages/storage`; browser adapters and UI in `apps/web`. Validate external data at runtime and add migration tests for schema changes. Keep note bodies out of file tree queries. Explain unfinished feature boundaries in [feature matrix](feature-matrix.md). Browser review is still needed for keyboard, mobile, storage quota, and offline behavior.
 
@@ -38,7 +50,7 @@ The same script builds `semantic-worker.js`. It uses the existing Transformers.j
 
 The same prebuild script bundles `src/lib/graph-worker.ts` into `public/graph-worker.js`. Graph derivation and ForceAtlas2 layout run in that worker; Sigma loads only when the graph view mounts. Both worker bundles are precached by the production service worker. See [knowledge graph](graph.md).
 
-`tesseract.js` provides the browser OCR worker and multilingual recognition engine; it is loaded only when OCR runs. `scripts/prepare-ocr-assets.mjs` copies its pinned worker and LSTM WebAssembly variants into same-origin public assets before `dev` or `build`. The checked-in English, Swedish, and Arabic `tessdata_fast` models are under `public/ocr/lang`, with their Apache-2.0 license. The production service worker precaches the runtime and models. To refresh models, run `node apps/web/scripts/fetch-ocr-languages.mjs`, review hashes and licensing, then run recognition and offline tests. Normal builds never fetch models. See [OCR](ocr.md).
+`tesseract.js` provides the browser OCR worker and multilingual recognition engine; it is loaded only when OCR runs. `scripts/prepare-ocr-assets.mjs` copies its pinned worker and LSTM WebAssembly variants into same-origin public assets before `dev` or `build`. The checked-in English, Swedish, and Arabic `tessdata_fast` models are under `public/ocr/lang`, with their Apache-2.0 license. The production service worker caches the runtime and selected models after first use. To refresh models, run `node apps/web/scripts/fetch-ocr-languages.mjs`, review hashes and licensing, then run recognition and offline tests. Normal builds never fetch models. See [OCR](ocr.md).
 
 `@huggingface/transformers` supplies the browser speech recognition pipeline. Its transitive ONNX runtime WebAssembly files are copied into same-origin assets by `scripts/prepare-transcription-assets.mjs`. The transcript worker is bundled with esbuild alongside search and graph workers because the Next.js static build does not compile source passed through a worker URL. The model itself downloads from Hugging Face on first use and is browser cached; normal builds do not download model weights. Pinning the package avoids runtime asset mismatches. See [transcription](transcription.md).
 
@@ -70,3 +82,21 @@ Bookmark target and group validation belongs in `apps/web/src/lib/bookmarks.ts`;
 
 `packages/crypto` uses browser Web Crypto for AES-GCM, PBKDF2-HMAC-SHA-256, P-256 ECDH, and HKDF; it introduces no new third-party cipher dependency. Keep its versioned envelopes and authenticated-data fields compatible when changing serialization. `packages/crypto/test/crypto.test.ts` covers passphrase/recovery unlock, tampering, attachment bytes, and device envelopes. `apps/web/test/encrypted-sync.test.ts` verifies the actual sync boundary and second-device recovery. Apply both Supabase migrations in order; the encryption migration fixes a vault's mode at creation. Before deployment, run the live RLS and Storage tests described in [encryption](encryption.md). Do not enable encrypted sync against a project that has only the base sync migration.
 
+## Collaboration development
+
+Apply the collaboration, sharing, and comment SQL migrations after the base sync and encryption migrations. `yjs`, `y-codemirror.next`, and `y-protocols` provide the CRDT, CodeMirror binding, and cursor awareness; the persistent transport uses the already configured Supabase client. Preserve the rule that a collaborative note's Markdown snapshot is synced once before the Yjs document is created, and subsequent Yjs updates are journaled locally before upload. Run `apps/web/test/collaboration.test.ts` for concurrent insert, delete/edit, offline reconnect, and large-note behavior, plus `markdown-editor.test.tsx` for the binding. Verify owner/member RLS, revocation, private Realtime authorization, and Storage policies against a live Supabase project before deployment. See [collaboration](collaboration.md).
+
+## Sharing development
+
+`@electric-sql/pglite` is a development-only embedded PostgreSQL dependency. It runs all six production migrations and realistic Auth, Storage, and Realtime RLS checks in `apps/web/test/sharing-permissions.test.ts` without needing a local Docker daemon. It is not bundled into the web application. Run that test when changing roles, invitations, transfer, comments, activity, Storage paths, or sync RPCs. The test catches SQL name resolution and three-valued boolean mistakes, but still needs a live Supabase check for Auth integration, Storage API behavior, and Realtime policy caching. See [sharing and permissions](sharing-permissions.md) and [activity history](activity-history.md).
+
+The web clipper is a separate workspace. `corepack pnpm --filter @noor-note/clipper-extension build` emits Chromium and Firefox development bundles in `apps/clipper-extension/dist`. Its tests exercise reader cleanup, metadata, selection, and handoff URL validation; `apps/web/test/clipper-import.test.ts` covers local draft recovery and note/attachment saves. Run the full root lint, typecheck, test, and build pipeline before distributing an extension bundle. Mozilla Readability supplies reader extraction; Turndown and its GFM plugin convert cleaned HTML to Markdown. Browser permission and store packaging still need manual verification. See [web clipper](web-clipper.md).
+
+Import adapters and conflict planning belong in `apps/web/src/lib/import-center.ts`; the dialog is only the review and selection surface. Add a fixture under `apps/web/test/fixtures/import-center` for every claimed source format or variant, and cover both inspection and repository commit. Keep source-specific unsupported elements visible in the preview. Check stale-plan rejection and attachment memory behavior when changing ZIP handling. See [Import Center](import-center.md).
+
+Markdown-vault reference analysis belongs in `apps/web/src/lib/obsidian-vault.ts`; keep it read-only and preserve source Markdown. Test aliases, wiki/heading/block links, relative attachment references, ignored code fences, ambiguous targets, and JSON Canvas file cards when changing the analyzer. Canvas files must import after notes and attachments so stable IDs can be attached. See [Obsidian-style vault import](obsidian-vault-import.md).
+
+
+## Browser accessibility checks
+
+Install Chromium once with `corepack pnpm --filter @noor-note/web exec playwright install chromium`, then run `corepack pnpm --filter @noor-note/web test:e2e`. Playwright starts the web app and checks the core keyboard, reflow, and axe workflows. See [the accessibility audit](accessibility.md) for coverage and remaining manual review.

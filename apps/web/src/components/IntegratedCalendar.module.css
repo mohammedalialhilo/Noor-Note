@@ -8,3 +8,22 @@
 .agenda { display: grid; gap: 12px; }.agenda section { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 14px; padding: 12px; border: 1px solid var(--nn-border); border-radius: 8px; background: var(--nn-surface); }.agenda section > button { align-self: start; border: 0; background: transparent; color: var(--nn-text); text-align: left; font-weight: 700; cursor: pointer; }.agenda .item { max-width: 650px; }.agenda > p { color: var(--nn-text-muted); }.dialog { width: min(520px, calc(100vw - 28px)); }.form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }.form label { display: grid; gap: 5px; color: var(--nn-text-soft); font-size: 12px; }.form input, .form select, .form textarea { width: 100%; min-height: 36px; padding: 7px 9px; border: 1px solid var(--nn-border); border-radius: 6px; background: var(--nn-surface); color: var(--nn-text); }.form .full { grid-column: 1 / -1; }.form > button { grid-column: 1 / -1; justify-self: end; }.periodic { flex: 1; min-width: 0; overflow: auto; }.back { margin: 12px 18px 0; }
 @media (max-width: 900px) { .month { min-width: 700px; }.week { min-width: 700px; }.content { overflow-x: auto; } }
 @media (max-width: 700px) { .mobileMenu { display: inline-flex; }.content { padding: 18px 14px 95px; }.heading { align-items: flex-start; }.heading .primary { font-size: 12px; }.controls { display: grid; }.filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.filters select { width: 100%; max-width: none; }.agenda section { grid-template-columns: 1fr; gap: 4px; }.form { grid-template-columns: 1fr; } }
+
+@media (max-width: 640px) {
+  .content { padding: 18px 10px calc(24px + env(safe-area-inset-bottom)); }
+  .heading { flex-wrap: wrap; }
+  .primary, .navigation button, .views button, .filters select, .topbar button { min-height: 44px; }
+  .navigation { flex-wrap: wrap; }
+  .navigation strong { flex-basis: 100%; margin: 4px 0 0; }
+  .views { overflow-x: auto; }
+  .views button { flex: 1; }
+  .month { min-width: 0; }
+  .weekdays strong { padding: 7px 1px; text-align: center; }
+  .month .day { min-height: 72px; padding: 2px; }
+  .month .dayButton { min-width: 38px; min-height: 38px; padding: 3px; }
+  .month .item { min-height: 22px; }
+  .month .item > button:first-child { font-size: 10px; }
+  .week { min-width: 560px; }
+  .moveButton { min-width: 36px; min-height: 36px; }
+  .form input, .form select, .form textarea { min-height: 44px; font-size: 16px; }
+}

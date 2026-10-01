@@ -51,8 +51,9 @@ export class GraphClient {
       const changed = notes.filter((note) => this.revisions.get(note.id) !== `${note.revision}:${note.checksum}` || selectedNote?.id === note.id);
       for (let offset = 0; offset < changed.length; offset += 80) {
         const batch = changed.slice(offset, offset + 80);
-        const loaded = await Promise.all(batch.map((entry) => selectedNote?.id === entry.id && selectedNote.revision === entry.revision ? Promise.resolve(selectedNote) : repository.getNote(entry.id)));
-        const valid = loaded.filter((note): note is VaultNote => Boolean(note));
+        const ids = batch.map((entry) => entry.id);
+        const loaded = repository.getNotes ? await repository.getNotes(ids) : (await Promise.all(ids.map((id) => repository.getNote(id)))).filter((note): note is VaultNote => Boolean(note));
+        const valid = loaded.map((note) => selectedNote?.id === note.id && selectedNote.revision === note.revision ? selectedNote : note);
         await this.dispatch({ id: this.nextId++, kind: 'update', notes: valid.map((note) => ({ id: note.id, markdown: note.markdown })), removed: [] });
         for (const note of valid) this.revisions.set(note.id, `${note.revision}:${note.checksum}`);
       }

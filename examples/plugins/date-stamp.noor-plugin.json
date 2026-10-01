@@ -1,0 +1,16 @@
+{
+  "manifest": {
+    "id": "noor.examples.date-stamp",
+    "name": "Date stamp",
+    "version": "1.0.0",
+    "description": "Insert a local date stamp into the active note from the command palette.",
+    "author": "Noor Note",
+    "minimumNoorVersion": "0.1.0",
+    "permissions": ["commands", "editor"],
+    "entryPoints": { "sandbox": "main.js" },
+    "networkOrigins": []
+  },
+  "files": {
+    "main.js": "noorNote.register({kind:'command',id:'insert-date',title:'Insert date stamp',category:'Editor'}, async () => { const date = new Date(); const stamp = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'); await noorNote.request('editor.insert', {text: stamp}); });"
+  }
+}

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Noor Note Clipper</title><link rel="stylesheet" href="popup.css"></head>
+<body><main>
+  <header><div class="mark" aria-hidden="true">✦</div><div><strong>Noor Note</strong><span>Web clipper</span></div></header>
+  <form id="clip-form">
+    <label for="app-origin">Your Noor Note site</label>
+    <input id="app-origin" type="url" required placeholder="https://your-site.netlify.app" autocomplete="url">
+    <p class="hint">Your clip is sent to this site for review and saved locally after you choose a vault.</p>
+    <label for="mode">Capture</label>
+    <select id="mode"><option value="article">Article</option><option value="selection">Selection</option><option value="bookmark">Bookmark</option><option value="image">Image</option><option value="screenshot">Visible screenshot</option><option value="highlight">Highlight selection</option><option value="highlights">Multiple highlights</option></select>
+    <div class="details"><span id="highlights-count">0 saved highlights</span><button id="clear-highlights" type="button">Clear</button></div>
+    <p class="hint">Select text, then use the page context menu to collect multiple highlights.</p>
+    <p id="image-status" class="hint">Uses the article main image</p>
+    <button id="submit" class="primary" type="submit">Capture and review <span aria-hidden="true">↗</span></button>
+  </form>
+  <p id="status" role="status" aria-live="polite">Loading current page…</p>
+</main><script src="popup.js"></script></body>
+</html>

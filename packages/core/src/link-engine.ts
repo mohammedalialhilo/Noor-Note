@@ -130,6 +130,66 @@ function candidates<T extends Pick<VaultNote, 'id' | 'path' | 'title' | 'aliases
   return notes.filter((note) => noteNames(note).includes(normalized));
 }
 
+/** Reusable metadata index for bulk link scans. Rebuild when note paths or aliases change. */
+export function createLinkResolver<T extends Pick<VaultNote, 'id' | 'path' | 'title' | 'aliases' | 'deletedAt'>>(notes: readonly T[]) {
+  const byId = new Map<string, T>();
+  const exactPath = new Map<string, T[]>();
+  const pathSuffix = new Map<string, T[]>();
+  const byTitle = new Map<string, T[]>();
+  const byName = new Map<string, T[]>();
+  const byFolderName = new Map<string, T[]>();
+  const add = (index: Map<string, T[]>, key: string, note: T) => {
+    const bucket = index.get(key);
+    if (bucket) bucket.push(note);
+    else index.set(key, [note]);
+  };
+  for (const note of notes) {
+    if (note.deletedAt) continue;
+    byId.set(note.id, note);
+    const path = pathName(note.path);
+    add(exactPath, path, note);
+    const parts = path.split('/');
+    for (let start = 0; start < parts.length; start += 1) add(pathSuffix, parts.slice(start).join('/'), note);
+    add(byTitle, pathName(note.title), note);
+    const folder = note.path.slice(0, note.path.lastIndexOf('/'));
+    for (const name of new Set(noteNames(note))) {
+      add(byName, name, note);
+      add(byFolderName, `${folder}\0${name}`, note);
+    }
+  }
+  const findCandidates = (link: Pick<InternalLink, 'target' | 'targetId'>, source: Pick<VaultNote, 'id' | 'path'>): T[] => {
+    if (link.targetId) return byId.has(link.targetId) ? [byId.get(link.targetId)!] : [];
+    const target = link.target;
+    if (!target) return byId.has(source.id) ? [byId.get(source.id)!] : [];
+    const normalized = pathName(target);
+    if (/\.md$/iu.test(target)) {
+      const absolute = resolveVaultReference(source.path, target);
+      if (absolute) {
+        const exact = exactPath.get(pathName(absolute)) ?? [];
+        if (exact.length) return exact;
+      }
+    }
+    if (target.startsWith('./') || target.startsWith('../') || target.startsWith('/')) {
+      const absolute = resolveVaultReference(source.path, target);
+      if (absolute) return exactPath.get(pathName(absolute)) ?? [];
+    }
+    const byPath = pathSuffix.get(normalized) ?? [];
+    if (target.includes('/')) return byPath;
+    const folder = source.path.slice(0, source.path.lastIndexOf('/'));
+    const sameFolder = byFolderName.get(`${folder}\0${normalized}`) ?? [];
+    if (sameFolder.length) return sameFolder;
+    const titles = byTitle.get(normalized) ?? [];
+    return titles.length ? titles : byName.get(normalized) ?? [];
+  };
+  return {
+    candidates: findCandidates,
+    resolve: (link: Pick<InternalLink, 'target' | 'targetId'>, source: Pick<VaultNote, 'id' | 'path'>): T | null => {
+      const matches = findCandidates(link, source);
+      return matches.length === 1 ? matches[0]! : null;
+    },
+  };
+}
+
 /** Resolve identity from metadata alone; validation of heading and block targets needs note bodies. */
 export function resolveLinkTarget<T extends Pick<VaultNote, 'id' | 'path' | 'title' | 'aliases' | 'deletedAt'>>(link: Pick<InternalLink, 'target' | 'targetId'>, source: Pick<VaultNote, 'id' | 'path'>, notes: T[]): T | null {
   const available = notes.filter((note) => !note.deletedAt);
@@ -138,9 +198,13 @@ export function resolveLinkTarget<T extends Pick<VaultNote, 'id' | 'path' | 'tit
 }
 
 export function resolveInternalLink(link: InternalLink, source: Pick<VaultNote, 'id' | 'path'>, notes: VaultNote[]): ResolvedLink {
-  if (link.kind === 'embed' && /\.(?:png|jpe?g|gif|webp|svg|avif|pdf|mp3|wav|ogg|mp4|webm|mov)$/iu.test(link.target)) return { ...link, status: 'attachment', noteId: null };
   const available = notes.filter((note) => !note.deletedAt);
   const matches = link.targetId ? available.filter((note) => note.id === link.targetId) : candidates(link.target, source, available);
+  return resolveInternalMatches(link, matches);
+}
+
+function resolveInternalMatches(link: InternalLink, matches: VaultNote[]): ResolvedLink {
+  if (link.kind === 'embed' && /\.(?:png|jpe?g|gif|webp|svg|avif|pdf|mp3|wav|ogg|mp4|webm|mov)$/iu.test(link.target)) return { ...link, status: 'attachment', noteId: null };
   if (matches.length !== 1) return { ...link, status: matches.length ? 'ambiguous' : 'missing', noteId: null };
   const note = matches[0]!;
   const requestedHeading = link.heading;
@@ -150,7 +214,8 @@ export function resolveInternalLink(link: InternalLink, source: Pick<VaultNote, 
 }
 
 export function scanLinks(notes: VaultNote[]): LinkOccurrence[] {
-  return notes.filter((note) => !note.deletedAt).flatMap((source) => parseInternalLinks(source.markdown).map((link) => ({ sourceNoteId: source.id, sourceTitle: source.title, link: resolveInternalLink(link, source, notes) })));
+  const resolver = createLinkResolver(notes);
+  return notes.filter((note) => !note.deletedAt).flatMap((source) => parseInternalLinks(source.markdown).map((link) => ({ sourceNoteId: source.id, sourceTitle: source.title, link: resolveInternalMatches(link, resolver.candidates(link, source)) })));
 }
 
 export function findUnlinkedMentions(notes: VaultNote[], target: VaultNote): UnlinkedMention[] {

@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Noor Note Clipper",
+  "short_name": "Noor Note",
+  "version": "0.1.0",
+  "description": "Capture articles, selections, images, screenshots, and highlights into your Noor Note vault.",
+  "permissions": ["activeTab", "scripting", "storage", "contextMenus"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": { "scripts": ["background.js"] },
+  "browser_specific_settings": { "gecko": { "id": "clipper@noor-note.app", "strict_min_version": "109.0" } },
+  "action": { "default_title": "Clip to Noor Note", "default_popup": "popup.html" }
+}

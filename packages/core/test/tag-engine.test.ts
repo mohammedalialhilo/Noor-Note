@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildTagTree, extractTags, inspectMetadata, normalizeTagName, planTagRewrite, rewriteTag, scanInlineTags, type VaultNote } from '../src';
 
 function note(markdown: string): VaultNote {
-  return { id: '11111111-1111-4111-8111-111111111111', vaultId: '22222222-2222-4222-8222-222222222222', folderId: null, path: '/Note.md', title: 'Note', markdown, aliases: [], properties: {}, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', deletedAt: null, trashGroupId: null, revision: 1, checksum: 'a'.repeat(64) };
+  return { id: '11111111-1111-4111-8111-111111111111', vaultId: '22222222-2222-4222-8222-222222222222', folderId: null, path: '/Note.md', title: 'Note', markdown, aliases: [], properties: {}, collaborative: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', deletedAt: null, trashGroupId: null, revision: 1, checksum: 'a'.repeat(64) };
 }
 
 describe('tags', () => {

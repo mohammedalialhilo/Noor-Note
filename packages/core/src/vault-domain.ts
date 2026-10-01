@@ -63,6 +63,7 @@ export const vaultNoteSchema = z.object({
   id, vaultId: id, folderId: id.nullable(), path, title: z.string().trim().max(200), markdown: z.string(),
   createdAt: timestamp, updatedAt: timestamp, deletedAt, trashGroupId: id.nullable(), aliases: z.array(z.string().trim().min(1).max(200)),
   properties: z.record(z.string().min(1), propertyValueSchema), revision: z.number().int().positive(), checksum: z.string().regex(/^[a-f0-9]{64}$/),
+  collaborative: z.boolean().default(false),
 }).strict().refine((note) => Date.parse(note.updatedAt) >= Date.parse(note.createdAt), { path: ['updatedAt'], message: 'Updated time precedes creation' });
 export const recordingMetadataSchema = z.object({ recordedAt: timestamp, durationMs: z.number().int().nonnegative().max(86_400_000) }).strict();
 export const attachmentSchema = z.object({
@@ -126,6 +127,18 @@ export const bookmarkSchema = z.object({
   if (item.pinned && item.kind !== 'note') context.addIssue({ code: 'custom', path: ['pinned'], message: 'Only notes can be pinned' });
 });
 export const workspaceSchema = z.object({ id, vaultId: id, name, layout: z.record(z.string(), z.unknown()), createdAt: timestamp, updatedAt: timestamp }).strict();
+export const dashboardWidgetKindSchema = z.enum(['recentNotes', 'recentlyModified', 'tasks', 'calendar', 'favorites', 'bookmarks', 'unlinkedMentions', 'graphSummary', 'writingStatistics', 'baseView', 'aiSuggestions', 'recentActivity']);
+export const dashboardWidgetSchema = z.object({ id, kind: dashboardWidgetKindSchema, width: z.number().int().min(1).max(2), height: z.number().int().min(1).max(2), hidden: z.boolean(), limit: z.number().int().min(1).max(20), baseId: id.nullable() }).strict();
+export const dashboardSchema = z.object({ id, vaultId: id, name: name, template: z.enum(['Home', 'Productivity', 'Research', 'Writing', 'Study']).nullable(), widgets: z.array(dashboardWidgetSchema).max(40), createdAt: timestamp, updatedAt: timestamp }).strict().refine((value) => new Set(value.widgets.map((widget) => widget.id)).size === value.widgets.length, 'Duplicate widget ID');
+export const studyRatingSchema = z.enum(['again', 'hard', 'good', 'easy']);
+export const studyReviewSchema = z.object({ at: timestamp, rating: studyRatingSchema, previousIntervalDays: z.number().nonnegative(), nextIntervalDays: z.number().positive(), previousEase: z.number().min(1.3).max(3), nextEase: z.number().min(1.3).max(3) }).strict();
+export const studyCardSchema = z.object({
+  id, vaultId: id, sourceNoteId: id, sourceLine: z.number().int().positive().nullable(),
+  sourceKind: z.enum(['markdown', 'heading', 'callout', 'selection', 'ai']), sourceKey: z.string().min(1).max(12_000),
+  kind: z.enum(['frontBack', 'questionAnswer', 'cloze']), front: z.string().trim().min(1).max(5_000), back: z.string().trim().min(1).max(5_000),
+  dueAt: timestamp, intervalDays: z.number().nonnegative().max(36_500), ease: z.number().min(1.3).max(3), repetitions: z.number().int().nonnegative(),
+  lastReviewedAt: timestamp.nullable(), history: z.array(studyReviewSchema).max(100_000), createdAt: timestamp, updatedAt: timestamp, deletedAt,
+}).strict();
 export const revisionSchema = z.object({
   id, vaultId: id, noteId: id, number: z.number().int().positive(), title: z.string(), path,
   markdown: z.string(), checksum: z.string().regex(/^[a-f0-9]{64}$/), createdAt: timestamp,
@@ -161,16 +174,21 @@ export type Base = z.infer<typeof baseSchema>;
 export type Template = z.infer<typeof templateSchema>;
 export type Bookmark = z.infer<typeof bookmarkSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
+export type Dashboard = z.infer<typeof dashboardSchema>;
+export type DashboardWidget = z.infer<typeof dashboardWidgetSchema>;
+export type DashboardWidgetKind = z.infer<typeof dashboardWidgetKindSchema>;
+export type StudyCard = z.infer<typeof studyCardSchema>;
+export type StudyRating = z.infer<typeof studyRatingSchema>;
 export type Revision = z.infer<typeof revisionSchema>;
 export type Comment = z.infer<typeof commentSchema>;
 export type UserPreference = z.infer<typeof userPreferenceSchema>;
 
-export type VaultObject = Tag | Property | Link | Task | Canvas | Base | Template | Bookmark | Workspace | Comment | UserPreference | MetadataSchema | PdfAnnotation | OcrRecord | Transcript;
-export type VaultObjectKind = 'tag' | 'property' | 'link' | 'task' | 'canvas' | 'base' | 'template' | 'bookmark' | 'workspace' | 'comment' | 'userPreference' | 'metadataSchema' | 'pdfAnnotation' | 'ocrRecord' | 'transcript';
+export type VaultObject = Tag | Property | Link | Task | Canvas | Base | Template | Bookmark | Workspace | Dashboard | StudyCard | Comment | UserPreference | MetadataSchema | PdfAnnotation | OcrRecord | Transcript;
+export type VaultObjectKind = 'tag' | 'property' | 'link' | 'task' | 'canvas' | 'base' | 'template' | 'bookmark' | 'workspace' | 'dashboard' | 'studyCard' | 'comment' | 'userPreference' | 'metadataSchema' | 'pdfAnnotation' | 'ocrRecord' | 'transcript';
 export const vaultObjectSchemas = {
   tag: tagSchema, property: propertySchema, link: linkSchema, task: taskSchema, canvas: canvasSchema,
   base: baseSchema, template: templateSchema, bookmark: bookmarkSchema, workspace: workspaceSchema,
-  comment: commentSchema, userPreference: userPreferenceSchema, metadataSchema: metadataSchemaSchema, pdfAnnotation: pdfAnnotationSchema, ocrRecord: ocrRecordSchema, transcript: transcriptSchema,
+  dashboard: dashboardSchema, studyCard: studyCardSchema, comment: commentSchema, userPreference: userPreferenceSchema, metadataSchema: metadataSchemaSchema, pdfAnnotation: pdfAnnotationSchema, ocrRecord: ocrRecordSchema, transcript: transcriptSchema,
 } as const;
 
 export function normalizeVaultPath(input: string): string {

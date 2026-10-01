@@ -56,6 +56,24 @@ describe('cloud sync foundation', () => {
     expect(noteFingerprint(edited)).toBe(syncFingerprint({ kind: 'note', item: edited }));
   });
 
+  it('keeps revision restore activity in a durable retryable outbox', async () => {
+    const owner = crypto.randomUUID();
+    const vault = crypto.randomUUID();
+    const note = crypto.randomUUID();
+    const revision = crypto.randomUUID();
+    const eventId = await store.enqueueRevisionActivity(owner, vault, note, revision);
+    expect(await store.pendingCount(owner, vault)).toBe(1);
+    await store.close();
+    store = new CloudSyncStore(syncDb);
+    const pending = (await store.dueRevisionActivities(owner, vault))[0]!;
+    expect(pending).toMatchObject({ id: eventId, noteId: note, sourceRevisionId: revision });
+    await store.failRevisionActivity(pending, 'Offline', Date.now() + 60_000);
+    expect(await store.dueRevisionActivities(owner, vault)).toHaveLength(0);
+    expect((await store.dueRevisionActivities(owner, vault, Date.now() + 61_000))[0]).toMatchObject({ id: eventId, attempts: 1, error: 'Offline' });
+    await store.acknowledgeRevisionActivity(eventId);
+    expect(await store.pendingCount(owner, vault)).toBe(0);
+  });
+
   it('retains a durable tombstone when trash is emptied', async () => {
     const vault = await repository.initialize();
     const note = await repository.createNote(vault.id, null, 'Remove', 'keep deleted state');
@@ -100,7 +118,8 @@ describe('cloud sync foundation', () => {
     const engine = new CloudSyncEngine(client, repository, store, owner, vault.id);
     await engine.enable();
     expect(engine.getSnapshot().status).toBe('offline');
-    expect(await store.pendingCount(owner, vault.id)).toBe(2);
+    // Queue the note immediately; defer the vault metadata record until cloud ownership is known.
+    expect(await store.pendingCount(owner, vault.id)).toBe(1);
     expect((await store.due(owner, vault.id)).some((item) => item.itemId === note.id)).toBe(true);
     expect(client.from).not.toHaveBeenCalled();
     expect(client.rpc).not.toHaveBeenCalled();
@@ -114,7 +133,7 @@ describe('cloud sync foundation', () => {
     const pushed: string[] = [];
     const client = {
       from(table: string) {
-        if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, name: vault.name }, error: null }) }) }) };
+        if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, storage_owner_id: owner, name: vault.name }, error: null }) }) }) };
         return { select: () => ({ eq: () => ({ gt: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) }) };
       },
       storage: { from: () => ({ upload: async () => ({ error: new Error('Attachment upload failed') }) }) },
@@ -141,7 +160,7 @@ describe('cloud sync foundation', () => {
     const upload = vi.fn(async () => ({ error: null }));
     const client = {
       from(table: string) {
-        if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, name: vault.name }, error: null }) }) }) };
+        if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, storage_owner_id: owner, name: vault.name }, error: null }) }) }) };
         return { select: () => ({ eq: () => ({ gt: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) }) };
       },
       storage: { from: () => ({ upload }) },
@@ -169,7 +188,7 @@ describe('cloud sync foundation', () => {
     };
     const client = {
       from(table: string) {
-        if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, name: vault.name }, error: null }) }) }) };
+        if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, storage_owner_id: owner, name: vault.name }, error: null }) }) }) };
         return { select: () => ({ eq: () => ({ gt: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) }) };
       },
       async rpc(_name: string, args: Record<string, unknown>) {
@@ -209,7 +228,7 @@ describe('cloud sync foundation', () => {
       };
       const client = {
         from(table: string) {
-          if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, name: vault.name }, error: null }) }) }) };
+          if (table === 'noor_sync_vaults') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: vault.id, owner_id: owner, storage_owner_id: owner, name: vault.name }, error: null }) }) }) };
           return { select: () => ({ eq: () => ({ gt: (_field: string, cursor: number) => ({ order: () => ({ limit: async () => ({ data: cursor < 2 ? [row] : [], error: null }) }) }) }) }) };
         },
         async rpc() { return { data: { status: 'applied', version: 1, sequence: 3 }, error: null }; },

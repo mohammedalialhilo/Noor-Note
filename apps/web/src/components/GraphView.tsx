@@ -8,6 +8,7 @@ import { ArrowDownLeft, ArrowUpRight, Check, FileText, Focus, Link2, Maximize2, 
 import { GraphClient } from '../lib/graph-client';
 import { defaultGraphFilters, localGraph, visibleGraph, type GraphFilters, type GraphPositions, type KnowledgeGraph, type KnowledgeNode } from '../lib/knowledge-graph';
 import type { WorkspaceLayout } from '../lib/workspace-layout';
+import { useTheme } from '../theme/ThemeProvider';
 import styles from './GraphView.module.css';
 
 interface Props {
@@ -86,7 +87,7 @@ function GraphCanvas({ graph, positions, rootId, query, grouping, nodeSize, onNo
       for (const node of graph.nodes) {
         const point = draggedPositionsRef.current[node.id] ?? positions[node.id] ?? { x: 0, y: 0 };
         const matches = !needle || `${node.label} ${node.path}`.toLocaleLowerCase().includes(needle);
-        const base = node.kind === 'tag' ? color('--nn-gold-muted') : node.kind === 'attachment' ? color('--nn-text-muted') : grouping === 'folder' ? color(groupTokens[groupIndex(node.folderId ?? 'root')]!) : color('--nn-accent-solid');
+        const base = node.kind === 'tag' ? color('--nn-gold-muted') : node.kind === 'attachment' ? color('--nn-text-muted') : grouping === 'folder' ? color(groupTokens[groupIndex(node.folderId ?? 'root')]!) : color('--nn-graph-node');
         graphology.addNode(node.id, { x: point.x, y: point.y, label: node.label, size: node.id === rootId ? 15 : nodeSize === 'connections' ? Math.min(17, 5 + Math.sqrt(node.degree) * 2) : 7, color: matches ? base : color('--nn-graph-dim'), highlighted: node.id === rootId, zIndex: node.id === rootId ? 2 : 0 });
       }
       for (const edge of graph.edges) graphology.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, { type: 'arrow', size: Math.min(3, 0.7 + Math.log2(edge.count + 1) * 0.35), color: edge.kind === 'tag' ? color('--nn-graph-tag-edge') : edge.kind === 'embed' ? color('--nn-graph-embed-edge') : rootId && edge.target === rootId ? color('--nn-graph-inbound') : rootId && edge.source === rootId ? color('--nn-graph-outbound') : color('--nn-graph-edge') });
@@ -96,14 +97,16 @@ function GraphCanvas({ graph, positions, rootId, query, grouping, nodeSize, onNo
     render();
   }, [graph, positions, rootId, query, grouping, nodeSize, ready]);
 
-  const zoom = (ratio: number) => { const camera = rendererRef.current?.getCamera(); if (camera) camera.animate({ ratio: camera.ratio * ratio }, { duration: 180 }); };
+  const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const zoom = (ratio: number) => { const camera = rendererRef.current?.getCamera(); if (camera) { const state = { ratio: camera.ratio * ratio }; if (reducedMotion()) camera.setState(state); else camera.animate(state, { duration: 180 }); } };
   return <div className={styles.canvasWrap}>
     <div ref={containerRef} className={styles.canvas} role="img" aria-label={`Knowledge graph with ${graph.nodes.length} nodes and ${graph.edges.length} connections. Use the searchable node list to navigate by keyboard.`} />
-    <div className={styles.zoomControls}><button type="button" aria-label="Zoom in" onClick={() => zoom(0.7)}><ZoomIn size={17} /></button><button type="button" aria-label="Zoom out" onClick={() => zoom(1.4)}><ZoomOut size={17} /></button><button type="button" aria-label="Fit graph" onClick={() => rendererRef.current?.getCamera().animatedReset({ duration: 220 })}><Maximize2 size={17} /></button></div>
+    <div className={styles.zoomControls}><button type="button" aria-label="Zoom in" onClick={() => zoom(0.7)}><ZoomIn size={17} /></button><button type="button" aria-label="Zoom out" onClick={() => zoom(1.4)}><ZoomOut size={17} /></button><button type="button" aria-label="Fit graph" onClick={() => { const camera = rendererRef.current?.getCamera(); if (!camera) return; if (reducedMotion()) camera.setState({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }); else camera.animatedReset({ duration: 220 }); }}><Maximize2 size={17} /></button></div>
   </div>;
 }
 
 export function GraphView({ vaultId, notes, attachments, selectedNote, repository, client, scope, onScopeChange, onOpenNote, onShowLocalGraph, onFilterTag, onOpenNavigation, initialState, onStateChange }: Props) {
+  const { appearanceRevision, resolvedTheme } = useTheme();
   const [data, setData] = useState<{ graph: KnowledgeGraph; positions: GraphPositions }>({ graph: blankGraph, positions: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,8 +176,8 @@ export function GraphView({ vaultId, notes, attachments, selectedNote, repositor
         {loading && <div className={styles.message} role="status">Building your graph locally…</div>}
         {error && <div className={styles.message} role="alert">{error}<button type="button" onClick={() => { if (!repository) return; setError(null); setLoading(true); void client.load(repository, vaultId, notes, attachments, selectedNote).then((result) => { setData(result); setLoading(false); }).catch((caught: unknown) => { setError(caught instanceof Error ? caught.message : 'Could not open the graph.'); setLoading(false); }); }}>Retry</button></div>}
         {!loading && !error && !graph.nodes.length && <div className={styles.message}>{scope === 'local' ? rootId ? 'This note has no visible connections at this depth.' : 'Open a note to see its local graph.' : 'Your graph is empty. Create notes and links to see connections.'}</div>}
-        {!error && graph.nodes.length > 0 && <GraphCanvas graph={graph} positions={data.positions} rootId={scope === 'local' ? rootId : null} query={query} grouping={grouping} nodeSize={nodeSize} onNode={handleNode} onContext={(node, x, y) => { if (node.kind === 'note') { contextTriggerRef.current = null; setContext({ node, x, y }); } }} onError={setError} />}
-        {context && <div className={styles.context} role="menu" aria-label={`Actions for ${context.node.label}`} style={{ left: Math.min(context.x, 500), top: Math.min(context.y, 360) }} onClick={(event) => event.stopPropagation()}>
+        {!error && graph.nodes.length > 0 && <GraphCanvas key={`${resolvedTheme}:${appearanceRevision}`} graph={graph} positions={data.positions} rootId={scope === 'local' ? rootId : null} query={query} grouping={grouping} nodeSize={nodeSize} onNode={handleNode} onContext={(node, x, y) => { if (node.kind === 'note') { contextTriggerRef.current = null; setContext({ node, x, y }); } }} onError={setError} />}
+        {context && <div className={styles.context} role="menu" aria-label={`Actions for ${context.node.label}`} style={{ left: Math.min(context.x, 500), top: Math.min(context.y, 360) }} onClick={(event) => event.stopPropagation()} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setContext(null); }} onKeyDown={(event) => { if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]; const current = items.indexOf(document.activeElement as HTMLButtonElement); const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items[next]?.focus(); }}>
           <button role="menuitem" type="button" onClick={() => { onOpenNote(context.node.id, 'tab'); setContext(null); }}>Open in new tab</button><button role="menuitem" type="button" onClick={() => { onOpenNote(context.node.id, 'split'); setContext(null); }}>Open in split</button><button role="menuitem" type="button" onClick={() => { void copyLink(context.node); }}>Copy note link</button><button role="menuitem" type="button" onClick={() => { onShowLocalGraph(context.node.id); setContext(null); }}>Show local graph</button>
         </div>}
         <div className={styles.legend}><span><i className={styles.noteDot} /> Note</span>{filters.showTags && <span><i className={styles.tagDot} /> Tag</span>}{filters.showAttachments && <span><i className={styles.attachmentDot} /> Attachment</span>}{scope === 'local' && <><span><ArrowDownLeft size={13} /> Inbound</span><span><ArrowUpRight size={13} /> Outbound</span></>}</div>

@@ -42,14 +42,14 @@ describe('encrypted sync boundary', () => {
     const vault = await first.repository.initialize();
     const note = await first.repository.createNote(vault.id, null, 'Secret plan', 'private research body');
     const attachment = await first.repository.addAttachment(vault.id, null, new Blob(['private attachment'], { type: 'text/plain' }), 'secret.txt');
-    const vaultRows: Array<{ id: string; owner_id: string; name: string; encryption_mode: string }> = [];
+    const vaultRows: Array<{ id: string; owner_id: string; storage_owner_id: string; name: string; encryption_mode: string }> = [];
     const records: RemoteRecord[] = [];
     const uploaded = new Map<string, Blob>();
     const client = {
       from(table: string) {
         if (table === 'noor_sync_vaults') return {
           select: () => ({ eq: (_column: string, id: string) => ({ maybeSingle: async () => ({ data: vaultRows.find((row) => row.id === id) ?? null, error: null }) }) }),
-          insert: async (value: { id: string; owner_id: string; name: string; encryption_mode: string }) => { vaultRows.push(value); return { error: null }; },
+          insert: async (value: { id: string; owner_id: string; name: string; encryption_mode: string }) => { vaultRows.push({ ...value, storage_owner_id: value.owner_id }); return { error: null }; },
         };
         const filters: Array<[string, string]> = [];
         let after = 0;

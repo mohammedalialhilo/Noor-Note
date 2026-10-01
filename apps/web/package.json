@@ -6,11 +6,12 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "node scripts/build-search-worker.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next dev",
+    "dev": "node scripts/build-search-worker.mjs && node scripts/build-public-publishing.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next dev",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "build": "node scripts/build-search-worker.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next build && node scripts/generate-service-worker.mjs",
-    "test": "vitest run"
+    "build": "node scripts/build-search-worker.mjs && node scripts/build-public-publishing.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next build && node scripts/generate-service-worker.mjs",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",
@@ -21,10 +22,12 @@
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.13",
     "@huggingface/transformers": "3.8.1",
+    "@lezer/highlight": "1.2.3",
     "@noble/hashes": "2.0.0",
     "@noor-note/ai": "workspace:*",
     "@noor-note/core": "workspace:*",
     "@noor-note/crypto": "workspace:*",
+    "@noor-note/plugin-sdk": "workspace:*",
     "@noor-note/search": "workspace:*",
     "@noor-note/storage": "workspace:*",
     "@noor-note/ui": "workspace:*",
@@ -47,9 +50,15 @@
     "remark-math": "^6.0.0",
     "sigma": "^3.0.3",
     "tesseract.js": "7.0.0",
+    "y-codemirror.next": "^0.3.6",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.33",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/react": "^16.3.3",
     "@types/node": "24.13.6",

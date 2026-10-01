@@ -26,7 +26,7 @@ export const noteActions: readonly { id: NoteActionId; name: string; instruction
   { id: 'extract-properties', name: 'Extract properties', instruction: 'Suggest YAML frontmatter fields and values supported by the text. Output a fenced YAML suggestion; do not claim certainty for inferred values.', placement: 'append' },
   { id: 'suggest-tags', name: 'Suggest tags', instruction: 'Suggest a short list of relevant Markdown tags using #tag syntax.', placement: 'append' },
   { id: 'suggest-title', name: 'Suggest title', instruction: 'Return one short plain-text title only, with no quotes or Markdown.', placement: 'title' },
-  { id: 'generate-flashcards', name: 'Generate flashcards', instruction: 'Create question and answer flashcards in Markdown, grounded in the text.', placement: 'append' },
+  { id: 'generate-flashcards', name: 'Generate flashcards', instruction: 'Create question and answer flashcards grounded in the text. Format each card as two Markdown lines: Q:: question followed by A:: answer. Separate cards with a blank line.', placement: 'append' },
   { id: 'generate-questions', name: 'Generate questions', instruction: 'Create useful study or discussion questions grounded in the text.', placement: 'append' },
   { id: 'identify-key-points', name: 'Identify key points', instruction: 'List the key points in concise Markdown bullets.', placement: 'append' },
   { id: 'find-contradictions', name: 'Find possible contradictions', instruction: 'Identify possible contradictions within the text, quote the conflicting claims, and distinguish uncertainty from a confirmed contradiction.', placement: 'append' },

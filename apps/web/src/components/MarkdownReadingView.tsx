@@ -10,26 +10,7 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import styles from './MarkdownReadingView.module.css';
-
-function MermaidDiagram({ source }: { source: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    if (source.length > 50_000) { const timer = window.setTimeout(() => setError(true), 0); return () => window.clearTimeout(timer); }
-    let live = true;
-    let objectUrl: string | null = null;
-    void import('mermaid').then(async ({ default: mermaid }) => {
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', maxTextSize: 50_000 });
-      const result = await mermaid.render(`noor-mermaid-${crypto.randomUUID().replaceAll('-', '')}`, source);
-      objectUrl = URL.createObjectURL(new Blob([result.svg], { type: 'image/svg+xml' }));
-      if (live) setUrl(objectUrl);
-      else URL.revokeObjectURL(objectUrl);
-    }).catch(() => { if (live) setError(true); });
-    return () => { live = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [source]);
-  if (error) return <pre className={styles.diagramError}>Could not render this Mermaid diagram. Its source remains in the note.</pre>;
-  return url ? <Image src={url} alt="Mermaid diagram" width={900} height={500} unoptimized className={styles.diagram} /> : <p>Rendering diagram…</p>;
-}
+import { MermaidDiagram } from './MermaidDiagram';
 
 function headingText(children: ReactNode): string {
   if (typeof children === 'string' || typeof children === 'number') return String(children);
@@ -47,9 +28,11 @@ interface Props {
   onOpenPdf?: (attachmentId: string, page: number, annotationId: string | null) => void;
   onCreateMissing?: (target: string) => void;
   onActiveHeading?: (id: string) => void;
+  instanceId?: string;
 }
 
-export function MarkdownReadingView({ note, notes, attachments, repository, onOpenNote, onOpenPdf, onCreateMissing, onActiveHeading }: Props) {
+export function MarkdownReadingView({ note, notes, attachments, repository, onOpenNote, onOpenPdf, onCreateMissing, onActiveHeading, instanceId }: Props) {
+  const readingId = instanceId ? `reading-${instanceId}` : `reading-${note.id}`;
   const [attachmentUrls, setAttachmentUrls] = useState<Map<string, string>>(new Map());
   const [embeds, setEmbeds] = useState<Map<string, string>>(new Map());
   const outline = useMemo(() => parseOutline(note.markdown), [note.markdown]);
@@ -88,7 +71,7 @@ export function MarkdownReadingView({ note, notes, attachments, repository, onOp
 
   useEffect(() => {
     if (!onActiveHeading) return;
-    const root = document.getElementById(`reading-${note.id}`);
+    const root = document.getElementById(readingId);
     if (!root) return;
     const headings = Array.from(root.querySelectorAll<HTMLElement>('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]'));
     const observer = new IntersectionObserver((entries) => {
@@ -97,7 +80,7 @@ export function MarkdownReadingView({ note, notes, attachments, repository, onOp
     }, { root: root.closest('.document-scroll'), rootMargin: '0px 0px -65% 0px' });
     headings.forEach((heading) => observer.observe(heading));
     return () => observer.disconnect();
-  }, [display, note.id, onActiveHeading]);
+  }, [display, readingId, onActiveHeading]);
 
   const headingIds = new Map<string, number>();
   const heading = (level: number, children: React.ReactNode) => {
@@ -105,7 +88,8 @@ export function MarkdownReadingView({ note, notes, attachments, repository, onOp
     const base = headingSlug(text) || 'heading';
     const count = headingIds.get(base) ?? 0;
     headingIds.set(base, count + 1);
-    const id = count ? `${base}-${count}` : base;
+    const slug = count ? `${base}-${count}` : base;
+    const id = instanceId ? `${instanceId}-${slug}` : slug;
     const Heading = `h${level}` as 'h1';
     return <Heading id={id}>{children}</Heading>;
   };
@@ -113,11 +97,20 @@ export function MarkdownReadingView({ note, notes, attachments, repository, onOp
     const path = resolveVaultReference(note.path, source);
     return path ? attachmentUrls.get(pathKey(path)) : undefined;
   };
-  return <div id={`reading-${note.id}`} className={`markdown-preview ${styles.reading}`} aria-label="Rendered Markdown preview">
+  return <div id={readingId} className={`markdown-preview nn-reading ${styles.reading}`} aria-label="Rendered Markdown preview">
     {display.trim() ? <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeHighlight]} skipHtml components={{
       h1: ({ children }) => heading(1, children), h2: ({ children }) => heading(2, children), h3: ({ children }) => heading(3, children),
       h4: ({ children }) => heading(4, children), h5: ({ children }) => heading(5, children), h6: ({ children }) => heading(6, children),
-      code: ({ className, children }) => className?.includes('language-mermaid') ? <MermaidDiagram source={String(children).replace(/\n$/u, '')} /> : <code className={className}>{children}</code>,
+      pre: ({ children }) => {
+        if (isValidElement(children)) {
+          const code = children as ReactElement<{ className?: string; children?: ReactNode }>;
+          if (code.props.className?.split(/\s+/u).includes('language-mermaid')) {
+            return <MermaidDiagram source={headingText(code.props.children).replace(/\n$/u, '')} />;
+          }
+        }
+        return <pre>{children}</pre>;
+      },
+      code: ({ className, children }) => <code className={className}>{children}</code>,
       img: ({ src, alt }) => {
         const source = typeof src === 'string' ? src : '';
         if (source.startsWith('#noor-embed-')) return <span className={styles.embedFallback}>Embedded note: {alt}</span>;

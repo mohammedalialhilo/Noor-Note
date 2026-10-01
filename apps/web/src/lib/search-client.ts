@@ -1,6 +1,6 @@
 import { makeOcrSearchDocument, makeSearchDocument, makeTranscriptSearchDocuments, SearchEngine, type SearchDocument, type SearchResult } from '@noor-note/search';
 import { ocrRecordSchema, transcriptSchema, type VaultNote } from '@noor-note/core';
-import type { VaultRepository } from '@noor-note/storage';
+import type { VaultRepository, VaultTree } from '@noor-note/storage';
 
 type Request = { id: number; kind: 'reset' } | { id: number; kind: 'update'; documents: SearchDocument[]; removed: string[] } | { id: number; kind: 'search'; query: string; limit: number };
 type Response = { id: number; results?: SearchResult[]; error?: string };
@@ -50,10 +50,10 @@ export class SearchClient {
   invalidateOcr(): void { this.invalidateDerived(); }
   invalidateDerived(): void { this.ocrLoaded = false; this.transcriptLoaded = false; this.ocrGeneration += 1; }
 
-  search(repository: VaultRepository, vaultId: string, query: string, limit = 500): Promise<SearchResult[]> {
+  search(repository: VaultRepository, vaultId: string, query: string, limit = 500, treeSnapshot?: VaultTree | null): Promise<SearchResult[]> {
     const operation = this.queue.then(async () => {
       if (this.vaultId !== vaultId) { await this.dispatch({ id: this.nextId++, kind: 'reset' }); this.revisions.clear(); this.ocrRevisions.clear(); this.ocrLoaded = false; this.transcriptRevisions.clear(); this.transcriptLoaded = false; this.vaultId = vaultId; }
-      const tree = await repository.listTree(vaultId);
+      const tree = treeSnapshot?.vault.id === vaultId ? treeSnapshot : await repository.listTree(vaultId);
       const entries = tree.notes;
       const current = new Set(entries.map((entry) => entry.id));
       const removed = [...this.revisions.keys()].filter((id) => !current.has(id));
@@ -61,7 +61,8 @@ export class SearchClient {
       const changed = entries.filter((entry) => this.revisions.get(entry.id) !== entry.revision);
       if (removed.length) await this.dispatch({ id: this.nextId++, kind: 'update', documents: [], removed });
       for (let start = 0; start < changed.length; start += 100) {
-        const notes = (await Promise.all(changed.slice(start, start + 100).map((entry) => repository.getNote(entry.id)))).filter((note): note is VaultNote => Boolean(note));
+        const ids = changed.slice(start, start + 100).map((entry) => entry.id);
+        const notes = repository.getNotes ? await repository.getNotes(ids) : (await Promise.all(ids.map((id) => repository.getNote(id)))).filter((note): note is VaultNote => Boolean(note));
         await this.dispatch({ id: this.nextId++, kind: 'update', documents: notes.map(makeSearchDocument), removed: [] });
         for (const note of notes) this.revisions.set(note.id, note.revision);
       }

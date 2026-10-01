@@ -8,8 +8,8 @@
   --nn-surface-hover: #eaf1e9;
   --nn-text: #263b37;
   --nn-text-soft: #40544d;
-  --nn-text-muted: #7a8982;
-  --nn-text-faint: #9aaa9e;
+  --nn-text-muted: #566a5e;
+  --nn-text-faint: #5b6f62;
   --nn-text-inverse: #ffffff;
   --nn-border: #e6ebe5;
   --nn-border-soft: #edf0ec;
@@ -34,13 +34,13 @@
   --nn-gold: #edc078;
   --nn-gold-hover: #f7d397;
   --nn-on-gold: #223b31;
-  --nn-gold-muted: #a08c62;
+  --nn-gold-muted: #715b31;
   --nn-success: #6bb088;
   --nn-danger: #a5574c;
   --nn-danger-soft: #fcf0ed;
   --nn-danger-subtle: var(--nn-danger-soft);
   --nn-danger-border: #efcdc4;
-  --nn-focus: #d3a852;
+  --nn-focus: #825510;
   --nn-selection: #c9e7d8;
   --nn-shadow: rgba(20, 50, 31, .16);
   --nn-elevation: 0 18px 48px var(--nn-shadow);
@@ -55,11 +55,27 @@
   --nn-scrim: rgba(19, 48, 35, .42);
   --nn-editor-caret: #2b7568;
   --nn-editor-selection: #dcefe9;
+  --nn-editor-bg: #ffffff;
+  --nn-editor-text: #40544d;
+  --nn-syntax-heading: #21634f;
+  --nn-syntax-link: #2c7664;
+  --nn-syntax-code: #9b5c43;
+  --nn-syntax-meta: #7a8982;
+  --nn-syntax-strong: #263b37;
+  --nn-syntax-keyword: #2c7664;
+  --nn-syntax-string: #9b5c43;
+  --nn-syntax-comment: #7a8982;
+  --nn-canvas-bg: #f9faf7;
+  --nn-canvas-card: #ffffff;
+  --nn-base-bg: #ffffff;
+  --nn-base-header: #f3f5f1;
+  --nn-base-row-hover: #eaf1e9;
   --nn-activity-width: 60px;
   --nn-nav-width: 244px;
   --nn-status-height: 30px;
   --nn-mobile-nav-height: 64px;
   --nn-graph-edge: #b5c9bc;
+  --nn-graph-node: #2e7964;
   --nn-graph-embed-edge: #b99559;
   --nn-graph-tag-edge: #c5b99a;
   --nn-graph-inbound: #8badd1;
@@ -71,6 +87,13 @@
   --nn-graph-group-4: #ba8755;
   --nn-graph-group-5: #4d9a98;
   --nn-graph-group-6: #a66676;
+  --nn-chart-1: var(--nn-graph-group-1);
+  --nn-chart-2: var(--nn-graph-group-2);
+  --nn-chart-3: var(--nn-graph-group-3);
+  --nn-chart-4: var(--nn-graph-group-4);
+  --nn-chart-5: var(--nn-graph-group-5);
+  --nn-chart-6: var(--nn-graph-group-6);
+  --nn-chart-area: var(--nn-accent-soft);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -103,6 +126,7 @@
     --nn-nav-text: #edf5ee;
     --nn-nav-muted: #b1cbbc;
     --nn-graph-edge: #617968;
+    --nn-graph-node: #8bcfa9;
     --nn-graph-embed-edge: #b39565;
     --nn-graph-tag-edge: #8a816e;
     --nn-graph-inbound: #88add3;
@@ -138,6 +162,21 @@
     --nn-scrim: rgba(0, 0, 0, .62);
     --nn-editor-caret: #9adcb8;
     --nn-editor-selection: #315846;
+    --nn-editor-bg: #182720;
+    --nn-editor-text: #c7d8ca;
+    --nn-syntax-heading: #a6dfbc;
+    --nn-syntax-link: #8bcfa9;
+    --nn-syntax-code: #ddaf77;
+    --nn-syntax-meta: #a2b5a6;
+    --nn-syntax-strong: #edf5ee;
+    --nn-syntax-keyword: #8bcfa9;
+    --nn-syntax-string: #ddaf77;
+    --nn-syntax-comment: #a2b5a6;
+    --nn-canvas-bg: #1c2b24;
+    --nn-canvas-card: #182720;
+    --nn-base-bg: #182720;
+    --nn-base-header: #24352c;
+    --nn-base-row-hover: #2a4135;
   }
 }
 
@@ -193,4 +232,32 @@
   --nn-scrim: rgba(0, 0, 0, .62);
   --nn-editor-caret: #9adcb8;
   --nn-editor-selection: #315846;
+  --nn-editor-bg: #182720;
+  --nn-editor-text: #c7d8ca;
+  --nn-syntax-heading: #a6dfbc;
+  --nn-syntax-link: #8bcfa9;
+  --nn-syntax-code: #ddaf77;
+  --nn-syntax-meta: #a2b5a6;
+  --nn-syntax-strong: #edf5ee;
+  --nn-syntax-keyword: #8bcfa9;
+  --nn-syntax-string: #ddaf77;
+  --nn-syntax-comment: #a2b5a6;
+  --nn-canvas-bg: #1c2b24;
+  --nn-canvas-card: #182720;
+  --nn-base-bg: #182720;
+  --nn-base-header: #24352c;
+  --nn-base-row-hover: #2a4135;
+  --nn-graph-node: #8bcfa9;
+  --nn-graph-edge: #617968;
+  --nn-graph-embed-edge: #b39565;
+  --nn-graph-tag-edge: #8a816e;
+  --nn-graph-inbound: #88add3;
+  --nn-graph-outbound: #c7a06d;
+  --nn-graph-dim: #4c6152;
+  --nn-graph-group-1: #8bcfa9;
+  --nn-graph-group-2: #91b2de;
+  --nn-graph-group-3: #c6a1ce;
+  --nn-graph-group-4: #ddaf77;
+  --nn-graph-group-5: #83c5c3;
+  --nn-graph-group-6: #d2939f;
 }

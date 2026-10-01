@@ -13,6 +13,7 @@ interface Props {
   onSelect: (id: string, fragment?: string) => void;
   onCreateMissing: (target: string) => void;
   onRefresh: () => Promise<void>;
+  readOnly?: boolean;
 }
 const ignoreKey = (note: VaultNote) => `noor-note-ignored-mentions:${note.vaultId}:${note.id}`;
 const oneKey = (mention: UnlinkedMention) => `${mention.sourceNoteId}:${mention.start}:${mention.text}`;
@@ -24,8 +25,9 @@ function readIgnored(note: VaultNote): Set<string> {
   } catch { return new Set(); }
 }
 
-export function LinkInspector({ note, notes, repository, onSelect, onCreateMissing, onRefresh }: Props) {
+export function LinkInspector({ note, notes, repository, onSelect, onCreateMissing, onRefresh, readOnly = false }: Props) {
   const [allNotes, setAllNotes] = useState<VaultNote[] | null>(null);
+  const [loadedCount, setLoadedCount] = useState(0);
   const [ignored, setIgnored] = useState(() => readIgnored(note));
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -33,9 +35,22 @@ export function LinkInspector({ note, notes, repository, onSelect, onCreateMissi
     if (!repository) return;
     let live = true;
     const timer = window.setTimeout(() => {
-      void Promise.all(notes.map((entry) => entry.id === note.id ? Promise.resolve(note) : repository.getNote(entry.id))).then((loaded) => {
-        if (live) { setAllNotes(loaded.filter((item): item is VaultNote => Boolean(item))); setError(null); }
-      }).catch(() => { if (live) setError('Could not load link details. Try reopening the inspector.'); });
+      setAllNotes(null);
+      setLoadedCount(0);
+      void (async () => {
+        const loaded: VaultNote[] = [];
+        for (let offset = 0; offset < notes.length && live; offset += 500) {
+          const ids = notes.slice(offset, offset + 500).map((entry) => entry.id);
+          const batch = repository.getNotes ? await repository.getNotes(ids) : (await Promise.all(ids.map((id) => repository.getNote(id)))).filter((item): item is VaultNote => Boolean(item));
+          const byId = new Map(batch.map((item) => [item.id, item]));
+          for (const id of ids) {
+            const item = id === note.id ? note : byId.get(id);
+            if (item) loaded.push(item);
+          }
+          if (live) setLoadedCount(loaded.length);
+        }
+        if (live) { setAllNotes(loaded); setError(null); }
+      })().catch(() => { if (live) setError('Could not load link details. Try reopening the inspector.'); });
     }, 250);
     return () => { live = false; window.clearTimeout(timer); };
   }, [note, notes, repository, version]);
@@ -51,7 +66,7 @@ export function LinkInspector({ note, notes, repository, onSelect, onCreateMissi
     try { localStorage.setItem(ignoreKey(note), JSON.stringify([...next])); } catch { setError('Could not save the ignored mention on this device.'); }
   };
   const convert = async (mention: UnlinkedMention) => {
-    if (!repository) return;
+    if (!repository || readOnly) return;
     try {
       const source = await repository.getNote(mention.sourceNoteId);
       if (!source) throw new Error('Source note is missing');
@@ -71,16 +86,16 @@ export function LinkInspector({ note, notes, repository, onSelect, onCreateMissi
       <div className={styles.rowTop}>{canOpen && targetId ? <button type="button" onClick={() => onSelect(targetId, direction === 'out' ? item.link.heading ?? item.link.blockId ?? undefined : undefined)}><Link2 size={13} /> {label} <ArrowRight size={12} /></button> : <span>{label}</span>}<small>{direction === 'out' ? item.link.status.replace('-', ' ') : `Line ${item.link.line}`}</small></div>
       {item.link.headingContext && <span className={styles.context}>Under {item.link.headingContext}</span>}
       <p>{item.link.preview}</p>
-      {direction === 'out' && item.link.status === 'missing' && item.link.target && <button type="button" className={styles.smallAction} onClick={() => onCreateMissing(item.link.target)}>Create missing note</button>}
+      {!readOnly && direction === 'out' && item.link.status === 'missing' && item.link.target && <button type="button" className={styles.smallAction} onClick={() => onCreateMissing(item.link.target)}>Create missing note</button>}
     </li>;
   };
   return <div className={styles.inspector}>
     {error && <p role="alert" className={styles.error}>{error}</p>}
-    {!allNotes && !error && <p className={styles.empty}>Loading link details…</p>}
+    {!allNotes && !error && <p className={styles.empty}>Loading link details{loadedCount ? ` (${loadedCount} of ${notes.length} notes)` : ''}…</p>}
     {allNotes && <>
       <section><h3>Outgoing links <span>{outgoing.length}</span></h3>{outgoing.length ? <ul>{outgoing.map((item) => linkRow(item, 'out'))}</ul> : <p className={styles.empty}>Add a wiki or local Markdown link to connect notes.</p>}</section>
       <section><h3>Backlinks <span>{backlinks.length}</span></h3>{backlinks.length ? <ul>{backlinks.map((item) => linkRow(item, 'in'))}</ul> : <p className={styles.empty}>Other notes that link here appear here.</p>}</section>
-      <section><h3>Unlinked mentions <span>{mentions.length}</span></h3>{mentions.length ? <ul>{mentions.map((mention) => <li key={oneKey(mention)} className={styles.row}><strong>{mention.sourceTitle || 'Untitled note'}</strong><small>Line {mention.line}{mention.headingContext ? ` · ${mention.headingContext}` : ''}</small><p>{mention.preview}</p><div className={styles.actions}><button type="button" onClick={() => { void convert(mention); }}>Convert to link</button><button type="button" onClick={() => remember(oneKey(mention))}>Ignore</button><button type="button" onClick={() => remember(sourceKey(mention))}>Ignore all from note</button></div></li>)}</ul> : <p className={styles.empty}>No unlinked mentions found.</p>}</section>
+      <section><h3>Unlinked mentions <span>{mentions.length}</span></h3>{mentions.length ? <ul>{mentions.map((mention) => <li key={oneKey(mention)} className={styles.row}><strong>{mention.sourceTitle || 'Untitled note'}</strong><small>Line {mention.line}{mention.headingContext ? ` · ${mention.headingContext}` : ''}</small><p>{mention.preview}</p><div className={styles.actions}>{!readOnly && <button type="button" onClick={() => { void convert(mention); }}>Convert to link</button>}<button type="button" onClick={() => remember(oneKey(mention))}>Ignore</button><button type="button" onClick={() => remember(sourceKey(mention))}>Ignore all from note</button></div></li>)}</ul> : <p className={styles.empty}>No unlinked mentions found.</p>}</section>
     </>}
   </div>;
 }

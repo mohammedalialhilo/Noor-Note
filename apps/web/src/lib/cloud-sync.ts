@@ -7,11 +7,13 @@ import type { VaultRepository } from '@noor-note/storage';
 import { attachmentObjectPath, encryptedSyncRecordSchema, nextRetryDelay, noteFingerprint, pushResultSchema, remoteRecordSchema, syncFingerprint, syncRecordSchema, type RemotePayload, type RemoteRecord, type SyncRecord } from './cloud-sync-types';
 import { CloudSyncStore, type SyncQueueItem } from './cloud-sync-store';
 import { VaultEncryptionStore } from './vault-encryption-store';
+import { CollabStore } from './collab-store';
+import { canEdit, vaultRoleSchema, type VaultRole } from './sharing';
 
 export type SyncStatus = 'disabled' | 'synced' | 'syncing' | 'offline' | 'pending' | 'error';
 export interface SyncSnapshot { status: SyncStatus; pending: number; error: string | null; lastSyncedAt: number | null }
 const initialSnapshot: SyncSnapshot = { status: 'disabled', pending: 0, error: null, lastSyncedAt: null };
-const vaultRowSchema = z.object({ id: z.uuid(), owner_id: z.uuid(), name: z.string(), encryption_mode: z.enum(['none', 'e2ee']).default('none') });
+const vaultRowSchema = z.object({ id: z.uuid(), owner_id: z.uuid(), storage_owner_id: z.uuid(), name: z.string(), encryption_mode: z.enum(['none', 'e2ee']).default('none') });
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -43,6 +45,9 @@ function isOnline(): boolean { return typeof navigator === 'undefined' || naviga
 export class CloudSyncEngine {
   private running = false;
   private cipher: VaultCipher | null = null;
+  private remoteOwnerId: string;
+  private remoteRole: VaultRole | null = null;
+  private accessLost = false;
   private pendingProfile: VaultEncryptionProfile | null = null;
   private snapshot: SyncSnapshot = initialSnapshot;
   private readonly listeners = new Set<(snapshot: SyncSnapshot) => void>();
@@ -57,7 +62,15 @@ export class CloudSyncEngine {
     onRemoteChange?: () => void,
     beforeLocalScan?: () => Promise<void>,
     private readonly encryptionStore?: VaultEncryptionStore,
-  ) { this.onRemoteChange = onRemoteChange; this.beforeLocalScan = beforeLocalScan; }
+  ) { this.onRemoteChange = onRemoteChange; this.beforeLocalScan = beforeLocalScan; this.remoteOwnerId = ownerId; }
+  isOwner(): boolean { return this.remoteRole === 'owner'; }
+  role(): VaultRole | null { return this.remoteRole; }
+  async recordRevisionRestore(noteId: string, sourceRevisionId: string): Promise<void> {
+    const vault = await this.repository.getVault(this.vaultId);
+    if (!vault || vault.settings.syncEncryptionMode === 'e2ee') return;
+    await this.store.enqueueRevisionActivity(this.ownerId, this.vaultId, noteId, sourceRevisionId);
+    void this.run();
+  }
   isUnlocked(): boolean { return this.cipher !== null; }
   async hasEncryption(): Promise<boolean> { return Boolean(await this.encryptionStore?.profile(this.vaultId)); }
   async configureEncryption(passphrase: string): Promise<string> {
@@ -142,8 +155,8 @@ export class CloudSyncEngine {
     const pending = await this.store.pendingCount(this.ownerId, this.vaultId);
     this.publish({ ...this.snapshot, status: preference.enabled ? isOnline() ? 'syncing' : 'offline' : 'disabled', pending });
   }
-  async listRemoteVaults(): Promise<{ id: string; name: string; encrypted: boolean }[]> {
-    const { data, error } = await this.client.from('noor_sync_vaults').select('id,owner_id,name,encryption_mode').eq('owner_id', this.ownerId).order('created_at');
+  async listRemoteVaults(): Promise<{ id: string; name: string; encrypted: boolean; shared: boolean }[]> {
+    const { data, error } = await this.client.from('noor_sync_vaults').select('id,owner_id,storage_owner_id,name,encryption_mode').order('created_at');
     if (error) throw error;
     const vaults = z.array(vaultRowSchema).parse(data);
     const snapshots = await this.client.from('noor_sync_records').select('vault_id,payload').eq('kind', 'vault');
@@ -153,7 +166,7 @@ export class CloudSyncEngine {
       const parsed = remoteRecordSchema.shape.payload.safeParse(row.payload);
       if (parsed.success && parsed.data.kind === 'vault' && !('sealed' in parsed.data) && parsed.data.item.id === row.vault_id) names.set(row.vault_id, parsed.data.item.name);
     }
-    return vaults.map(({ id, name, encryption_mode }) => ({ id, name: names.get(id) ?? name, encrypted: encryption_mode === 'e2ee' }));
+    return vaults.map(({ id, name, owner_id, encryption_mode }) => ({ id, name: names.get(id) ?? name, encrypted: encryption_mode === 'e2ee', shared: owner_id !== this.ownerId }));
   }
   async restoreRemoteVault(remoteVaultId: string, recoveryCode?: string, newPassphrase?: string): Promise<void> {
     const id = z.uuid().parse(remoteVaultId);
@@ -189,16 +202,32 @@ export class CloudSyncEngine {
   private async ensureRemoteVault(vault: Vault): Promise<void> {
     if ((vault.settings.syncEncryptionMode === 'e2ee') !== Boolean(this.cipher)) throw new Error('Local vault encryption mode does not match the unlocked key');
     if (this.cipher && this.cipher.vaultId !== vault.id) throw new Error('Unlocked vault key identity mismatch');
-    const { data, error } = await this.client.from('noor_sync_vaults').select('id,owner_id,name,encryption_mode').eq('id', vault.id).maybeSingle();
+    const { data, error } = await this.client.from('noor_sync_vaults').select('id,owner_id,storage_owner_id,name,encryption_mode').eq('id', vault.id).maybeSingle();
     if (error) throw error;
     if (data) {
       const row = vaultRowSchema.parse(data);
-      if (row.owner_id !== this.ownerId) throw new Error('This cloud vault belongs to another account');
+      if (row.owner_id !== this.ownerId && row.encryption_mode !== 'none') throw new Error('Encrypted vault sharing is unavailable');
+      this.remoteOwnerId = row.storage_owner_id;
+      this.accessLost = false;
+      if (row.owner_id === this.ownerId) this.remoteRole = 'owner';
+      else {
+        const access = await this.client.rpc('noor_vault_role', { p_vault_id: vault.id });
+        if (access.error) throw access.error;
+        const parsed = vaultRoleSchema.nullable().parse(access.data);
+        if (!parsed) { this.remoteRole = null; this.accessLost = true; throw new Error('Your access to this shared vault has ended'); }
+        this.remoteRole = parsed;
+      }
       if ((row.encryption_mode === 'e2ee') !== Boolean(this.cipher)) throw new Error('Cloud vault encryption mode does not match the local vault');
       return;
     }
+    if (await this.store.hasEverSynced(this.ownerId, this.vaultId)) {
+      this.remoteRole = null;
+      this.accessLost = true;
+      throw new Error('This cloud vault is unavailable or your access has ended. Your local copy remains on this device.');
+    }
     const inserted = await this.client.from('noor_sync_vaults').insert({ id: vault.id, owner_id: this.ownerId, name: this.cipher ? 'Encrypted vault' : vault.name, encryption_mode: this.cipher ? 'e2ee' : 'none' });
     if (inserted.error) throw inserted.error;
+    this.remoteRole = 'owner';
   }
   async run(): Promise<void> {
     if (this.running) return;
@@ -213,7 +242,7 @@ export class CloudSyncEngine {
     catch (error) { this.publish({ ...this.snapshot, status: 'error', error: `Local save failed: ${message(error)}` }); return; }
     if (!isOnline()) {
       try {
-        const localErrors = await this.reconcile(preference.attachments);
+        const localErrors = !this.accessLost && (this.remoteRole === null || canEdit(this.remoteRole)) ? await this.reconcile(preference.attachments) : [];
         this.publish({ ...this.snapshot, status: 'offline', error: localErrors[0] ?? null, pending: await this.store.pendingCount(this.ownerId, this.vaultId) });
       } catch (error) {
         this.publish({ ...this.snapshot, status: 'offline', error: message(error), pending: await this.store.pendingCount(this.ownerId, this.vaultId) });
@@ -227,9 +256,10 @@ export class CloudSyncEngine {
       const vault = await this.repository.getVault(this.vaultId);
       if (!vault) throw new Error('Local vault is unavailable');
       await this.ensureRemoteVault(vault);
+      if (canEdit(this.remoteRole)) errors.push(...await this.reconcile(preference.attachments));
       try { await this.pull(preference.attachments); } catch (error) { errors.push(message(error)); }
-      errors.push(...await this.reconcile(preference.attachments));
-      const due = await this.store.due(this.ownerId, this.vaultId);
+      if (canEdit(this.remoteRole)) errors.push(...await this.reconcile(preference.attachments));
+      const due = canEdit(this.remoteRole) ? await this.store.due(this.ownerId, this.vaultId) : [];
       for (const item of due) {
         const currentPreference = await this.store.preference(this.ownerId, this.vaultId);
         if (!currentPreference.enabled) break;
@@ -241,8 +271,25 @@ export class CloudSyncEngine {
           await this.store.fail(item, reason, Date.now() + nextRetryDelay(item.attempts));
         }
       }
-      errors.push(...await this.reconcile(preference.attachments));
+      if (canEdit(this.remoteRole) && !this.cipher) {
+        for (const item of await this.store.dueRevisionActivities(this.ownerId, this.vaultId)) {
+          if (await this.store.hasPending(this.ownerId, this.vaultId, 'note', item.noteId)) continue;
+          try {
+            const result = await this.client.rpc('noor_record_revision_restore', {
+              p_vault: this.vaultId, p_note: item.noteId, p_source_revision: item.sourceRevisionId, p_event: item.id,
+            });
+            if (result.error) throw result.error;
+            await this.store.acknowledgeRevisionActivity(item.id);
+          } catch (error) {
+            const reason = message(error);
+            errors.push(reason);
+            await this.store.failRevisionActivity(item, reason, Date.now() + nextRetryDelay(item.attempts));
+          }
+        }
+      }
+      if (canEdit(this.remoteRole)) errors.push(...await this.reconcile(preference.attachments));
       const pending = await this.store.pendingCount(this.ownerId, this.vaultId);
+      if (!canEdit(this.remoteRole) && pending > 0) errors.push('Your current vault role cannot upload locally queued changes. The local copy remains on this device.');
       const currentPreference = await this.store.preference(this.ownerId, this.vaultId);
       this.publish({
         status: !currentPreference.enabled ? 'disabled' : errors.length ? 'error' : pending ? 'pending' : 'synced',
@@ -252,7 +299,7 @@ export class CloudSyncEngine {
     } catch (error) {
       let reason = message(error);
       try {
-        const localErrors = await this.reconcile(preference.attachments);
+        const localErrors = !this.accessLost && (this.remoteRole === null || canEdit(this.remoteRole)) ? await this.reconcile(preference.attachments) : [];
         if (localErrors.length) reason = `${reason}; ${localErrors[0]}`;
       } catch (localError) { reason = `${reason}; ${message(localError)}`; }
       this.publish({ ...this.snapshot, status: 'error', error: reason, pending: await this.store.pendingCount(this.ownerId, this.vaultId) });
@@ -280,13 +327,18 @@ export class CloudSyncEngine {
       return previous?.pending !== fingerprint && (previous?.ledger !== fingerprint || previous.pending !== null);
     };
     const vaultRecord: SyncRecord = { kind: 'vault', item: vault };
-    if (needsRecord(vaultRecord)) await this.store.enqueue(this.ownerId, this.vaultId, vaultRecord);
+    if (this.isOwner() && needsRecord(vaultRecord)) await this.store.enqueue(this.ownerId, this.vaultId, vaultRecord);
     const [tree, trash] = await Promise.all([this.repository.listTree(this.vaultId), this.repository.listTrash(this.vaultId)]);
     for (const folder of [...tree.folders, ...trash.folders]) {
       const record: SyncRecord = { kind: 'folder', item: folder };
       if (needsRecord(record)) await this.store.enqueue(this.ownerId, this.vaultId, record);
     }
     for (const entry of [...tree.notes, ...trash.notes]) {
+      if (entry.collaborative) {
+        const collabStore = new CollabStore();
+        try { if (await collabStore.hasDocument(entry.id)) continue; }
+        finally { collabStore.close(); }
+      }
       const previous = known.get(CloudSyncStore.itemKey(this.ownerId, this.vaultId, 'note', entry.id));
       const fingerprint = noteFingerprint(entry);
       if (previous?.pending === fingerprint || previous?.ledger === fingerprint && previous.pending === null) continue;
@@ -322,7 +374,7 @@ export class CloudSyncEngine {
       if (checksum !== record.checksum) throw new Error('Attachment changed during upload');
       const bytes = this.cipher ? await this.cipher.sealAttachment(item.itemId, blob) : blob;
       blobChecksum = this.cipher ? await checksumBlob(bytes) : undefined;
-      const path = attachmentObjectPath(this.ownerId, this.vaultId, item.itemId, blobChecksum ?? checksum);
+      const path = attachmentObjectPath(this.remoteOwnerId, this.vaultId, item.itemId, blobChecksum ?? checksum);
       const uploaded = await this.client.storage.from('noor-note-attachments').upload(path, bytes, { upsert: true, contentType: this.cipher ? 'application/octet-stream' : record.item.mime });
       if (uploaded.error) throw uploaded.error;
     }
@@ -418,7 +470,7 @@ export class CloudSyncEngine {
       if (!record.item.deletedAt && record.checksum && localChecksum !== record.checksum) {
         const remoteChecksum = 'sealed' in remote.payload ? remote.payload.blobChecksum : record.checksum;
         if (!remoteChecksum) throw new Error('Encrypted attachment checksum is missing');
-        const path = attachmentObjectPath(this.ownerId, this.vaultId, record.item.id, remoteChecksum);
+        const path = attachmentObjectPath(this.remoteOwnerId, this.vaultId, record.item.id, remoteChecksum);
         const downloaded = await this.client.storage.from('noor-note-attachments').download(path);
         if (downloaded.error) throw downloaded.error;
         if (await checksumBlob(downloaded.data) !== remoteChecksum) throw new Error('Downloaded attachment checksum mismatch');

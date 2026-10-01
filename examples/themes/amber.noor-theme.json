@@ -1,0 +1,21 @@
+{
+  "id": "noor-note.amber",
+  "name": "Amber Paper",
+  "version": "1.0.0",
+  "author": "Noor Note",
+  "base": "light",
+  "tokens": {
+    "--nn-bg": "#faf7f0",
+    "--nn-surface": "#ffffff",
+    "--nn-text": "#202520",
+    "--nn-text-muted": "#555e55",
+    "--nn-border": "#c8cec6",
+    "--nn-accent": "#765033",
+    "--nn-editor-bg": "#ffffff",
+    "--nn-editor-text": "#202520",
+    "--nn-syntax-heading": "#765033",
+    "--nn-graph-node": "#765033",
+    "--nn-canvas-bg": "#faf7f0",
+    "--nn-base-bg": "#ffffff"
+  }
+}

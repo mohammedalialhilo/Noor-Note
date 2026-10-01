@@ -157,6 +157,7 @@
   user-select: none;
 }
 .nn-menu__item[data-highlighted] { background: var(--nn-accent-subtle); outline: none; }
+.nn-menu__item[data-highlighted]:focus-visible { outline: 2px solid var(--nn-focus); outline-offset: -2px; }
 .nn-menu__item[data-disabled] { opacity: .45; }
 .nn-menu__label { padding: .4rem .625rem; color: var(--nn-text-muted); font-size: .75rem; font-weight: 700; }
 .nn-menu__separator { height: 1px; margin: .3rem .25rem; background: var(--nn-border); }

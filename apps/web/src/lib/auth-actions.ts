@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { accountRedirectUrl } from './auth-client';
 import type { ConfiguredOAuthProvider } from './auth-config';
+import { purgeAccountCaches } from './pwa-cache';
 
 const emailSchema = z.email().max(254);
 const passwordSchema = z.string().min(8, 'Use at least 8 characters.').max(1024);
@@ -58,6 +59,8 @@ export async function updateAccountPassword(client: SupabaseClient, password: st
 export async function signOutOfAccount(client: SupabaseClient, scope: 'local' | 'global' = 'local'): Promise<void> {
   const response = await client.auth.signOut({ scope });
   assertNoError(response.error);
+  // Local vault IndexedDB and the public app shell remain available after sign-out.
+  await purgeAccountCaches().catch(() => undefined);
 }
 
 export async function signInWithOAuth(client: SupabaseClient, provider: ConfiguredOAuthProvider, origin: string): Promise<void> {

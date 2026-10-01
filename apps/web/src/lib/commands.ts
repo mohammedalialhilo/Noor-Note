@@ -3,7 +3,7 @@ import type { NoteRefactorRequest, PeriodKind } from '@noor-note/core';
 import { noteActions, type NoteActionId } from '@noor-note/ai';
 
 export type CommandCategory = 'Navigation' | 'Notes' | 'Tabs' | 'Panes' | 'Files' | 'Editor';
-export type EditorCommandAction = 'source' | 'live' | 'reading' | 'heading' | 'bold' | 'italic' | 'strike' | 'task' | 'list' | 'link' | 'inline-code' | 'undo' | 'redo' | 'find' | 'copy-block-link' | 'details' | 'settings' | 'focus' | 'download' | 'delete';
+export type EditorCommandAction = 'source' | 'live' | 'reading' | 'present' | 'heading' | 'bold' | 'italic' | 'strike' | 'task' | 'list' | 'link' | 'inline-code' | 'undo' | 'redo' | 'find' | 'copy-block-link' | 'details' | 'settings' | 'focus' | 'download' | 'delete';
 export interface CommandAvailability {
   hasNote: boolean;
   hasEditor: boolean;
@@ -17,7 +17,10 @@ export interface CommandContext extends CommandAvailability {
   createNote: () => void;
   focusSearch: () => void;
   showNotes: () => void;
+  showDashboard: () => void;
   showTasks: () => void;
+  showStudy: () => void;
+  showActivity: () => void;
   showTags: () => void;
   showGlobalGraph: () => void;
   showLocalGraph: () => void;
@@ -101,7 +104,10 @@ const core: CommandDefinition[] = [
   { id: 'navigation.command-palette', name: 'Open command palette', category: 'Navigation', defaultShortcut: 'Mod+P', handler: (c) => c.openPalette() },
   { id: 'navigation.palette-legacy', name: 'Open command palette (legacy shortcut)', category: 'Navigation', defaultShortcut: 'Mod+K', handler: (c) => c.openPalette() },
   { id: 'navigation.all-notes', name: 'Show all notes', category: 'Navigation', handler: (c) => c.showNotes() },
+  { id: 'navigation.dashboard', name: 'Show dashboards', category: 'Navigation', handler: (c) => c.showDashboard() },
   { id: 'navigation.tasks', name: 'Show tasks', category: 'Navigation', handler: (c) => c.showTasks() },
+  { id: 'navigation.study', name: 'Show study cards', category: 'Navigation', handler: (c) => c.showStudy() },
+  { id: 'navigation.activity', name: 'Show shared activity', category: 'Navigation', handler: (c) => c.showActivity() },
   { id: 'navigation.tags', name: 'Show tags', category: 'Navigation', handler: (c) => c.showTags() },
   { id: 'navigation.graph', name: 'Show global graph', category: 'Navigation', handler: (c) => c.showGlobalGraph() },
   { id: 'navigation.local-graph', name: 'Show local graph', category: 'Navigation', available: (c) => c.hasNote, handler: (c) => c.showLocalGraph() },
@@ -146,9 +152,9 @@ const core: CommandDefinition[] = [
   { id: 'panes.split-horizontal', name: 'Split pane horizontally', category: 'Panes', available: (c) => c.hasEditor, handler: (c) => c.splitHorizontal() },
   { id: 'panes.close', name: 'Close active pane', category: 'Panes', available: (c) => c.hasEditor && c.hasSplit, handler: (c) => c.closePane() },
   { id: 'files.import', name: 'Import files', category: 'Files', handler: (c) => c.importFiles() },
-  { id: 'files.export', name: 'Export vault ZIP', category: 'Files', handler: (c) => c.exportVault() },
+  { id: 'files.export', name: 'Open Export Center', category: 'Files', handler: (c) => c.exportVault() },
   ...([
-    ['source', 'Switch to Source Mode'], ['live', 'Switch to Live Preview'], ['reading', 'Switch to Reading Mode'],
+    ['source', 'Switch to Source Mode'], ['live', 'Switch to Live Preview'], ['reading', 'Switch to Reading Mode'], ['present', 'Present current note'],
     ['heading', 'Insert heading'], ['bold', 'Bold selection'], ['italic', 'Italic selection'], ['strike', 'Strike selection'],
     ['task', 'Insert task'], ['list', 'Insert list'], ['link', 'Insert link'], ['inline-code', 'Inline code'],
     ['undo', 'Undo'], ['redo', 'Redo'], ['find', 'Find and replace'], ['copy-block-link', 'Copy block link'],

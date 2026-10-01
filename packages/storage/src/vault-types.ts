@@ -70,7 +70,9 @@ export interface VaultRepository {
   createNote(vaultId: string, folderId?: string | null, title?: string, markdown?: string | ((path: string) => string)): Promise<VaultNote>;
   importNote(vaultId: string, folderId: string | null, input: Pick<VaultNote, 'path' | 'title' | 'markdown' | 'createdAt' | 'updatedAt' | 'aliases' | 'properties'>): Promise<VaultNote>;
   getNote(id: string): Promise<VaultNote | undefined>;
-  saveNote(id: string, patch: Partial<Pick<VaultNote, 'title' | 'markdown' | 'aliases' | 'properties'>>, forceCheckpoint?: boolean): Promise<VaultNote>;
+  /** Optional batch read for indexing large vaults; returned notes follow input order. */
+  getNotes?(ids: readonly string[]): Promise<VaultNote[]>;
+  saveNote(id: string, patch: Partial<Pick<VaultNote, 'title' | 'markdown' | 'aliases' | 'properties' | 'collaborative'>>, forceCheckpoint?: boolean): Promise<VaultNote>;
   renameNote(id: string, title: string): Promise<VaultNote>;
   renameNoteWithLinks(id: string, title: string, expectedRevision: number, changes: RenameChange[], expectedRevisions: { id: string; revision: number }[]): Promise<VaultNote>;
   applyVaultNoteEdits(vaultId: string, changes: TagChange[], expectedRevisions: { id: string; revision: number }[]): Promise<VaultNote[]>;

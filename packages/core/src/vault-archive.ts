@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { baseSchema, bookmarkSchema, canvasSchema, metadataSchemaSchema, ocrRecordSchema, pdfAnnotationSchema, recordingMetadataSchema, transcriptSchema, workspaceSchema, vaultSettingsSchema, type PeriodKind } from './vault-domain';
+import { baseSchema, bookmarkSchema, canvasSchema, dashboardSchema, metadataSchemaSchema, ocrRecordSchema, pdfAnnotationSchema, recordingMetadataSchema, studyCardSchema, transcriptSchema, workspaceSchema, vaultSettingsSchema, type PeriodKind } from './vault-domain';
 import { validatePeriodRule } from './period-notes';
 import { compileTaskQuery } from './task-query';
 
@@ -19,6 +19,8 @@ export const vaultArchiveManifestSchema = z.object({
   bases: z.array(baseSchema).optional(),
   canvases: z.array(canvasSchema).optional(),
   workspaces: z.array(workspaceSchema).optional(),
+  dashboards: z.array(dashboardSchema).optional(),
+  studyCards: z.array(studyCardSchema).optional(),
   bookmarks: z.array(bookmarkSchema).optional(),
   pdfAnnotations: z.array(pdfAnnotationSchema).optional(),
   ocrRecords: z.array(ocrRecordSchema).optional(),

@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { ensureBlockId, findUnlinkedMentions, fuzzyNotes, parseBlocks, parseInternalLinks, planLinkRename, replaceMention, resolveInternalLink, scanLinks, type VaultNote } from '../src';
+import { createLinkResolver, ensureBlockId, findUnlinkedMentions, fuzzyNotes, parseBlocks, parseInternalLinks, planLinkRename, replaceMention, resolveInternalLink, resolveLinkTarget, scanLinks, type VaultNote } from '../src';
 
 const vaultId = '55555555-5555-4555-8555-555555555555';
 function note(id: string, title: string, path: string, markdown = '', aliases: string[] = []): VaultNote {
-  return { id, vaultId, folderId: null, path, title, markdown, aliases, properties: {}, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', deletedAt: null, trashGroupId: null, revision: 1, checksum: 'a'.repeat(64) };
+  return { id, vaultId, folderId: null, path, title, markdown, aliases, properties: {}, collaborative: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', deletedAt: null, trashGroupId: null, revision: 1, checksum: 'a'.repeat(64) };
 }
 const plan = note('11111111-1111-4111-8111-111111111111', 'Plan', '/Research/Plan.md', '# Scope\n\nA paragraph ^b-one', ['Roadmap']);
 const source = note('22222222-2222-4222-8222-222222222222', 'Source', '/Research/Source.md', '[[Plan]] [[Research/Plan|Map]] [[Plan#Scope]] [[Plan^b-one]]\n[Plan](Plan.md)\n![[Plan]]\n`[[Ignored]]`\n```md\n[[Hidden]]\n```');
 
 describe('internal link engine', () => {
+  it('keeps indexed bulk resolution equivalent to direct resolution', () => {
+    const other = note('33333333-3333-4333-8333-333333333333', 'Plan', '/Other/Plan.md', '', ['Blueprint']);
+    const nested = note('44444444-4444-4444-8444-444444444444', 'Draft', '/Research/Drafts/Draft.md');
+    const deleted = { ...note('66666666-6666-4666-8666-666666666666', 'Archive', '/Archive.md'), deletedAt: '2026-02-01T00:00:00.000Z' };
+    const notes = [plan, source, other, nested, deleted];
+    const resolver = createLinkResolver(notes);
+    for (const from of [source, nested]) for (const target of ['Plan', 'Research/Plan', 'Plan.md', '../Plan.md', '/Research/Plan.md', 'Roadmap', 'Blueprint', 'Draft', 'Missing', 'Archive', '']) {
+      const link = { target, targetId: null };
+      expect(resolver.resolve(link, from)?.id ?? null).toBe(resolveLinkTarget(link, from, notes)?.id ?? null);
+    }
+    expect(resolver.resolve({ target: 'Anything', targetId: plan.id }, source)?.id).toBe(plan.id);
+  });
+
   it('parses wiki, folder, alias, heading, block, embed, and local Markdown links with offsets', () => {
     const links = parseInternalLinks(source.markdown);
     expect(links.map((link) => [link.kind, link.target, link.alias, link.heading, link.blockId])).toEqual([

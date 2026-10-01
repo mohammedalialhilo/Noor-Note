@@ -7,22 +7,28 @@ import Link from 'next/link';
 import type { VaultStatistics } from '@noor-note/storage';
 import type { useVaultWorkspace } from '../hooks/useVaultWorkspace';
 import type { useCloudSync } from '../hooks/useCloudSync';
+import type { usePwa } from '../hooks/usePwa';
 import { canConnectDirectory, pickDirectory, writeVaultToDirectory } from '../lib/connected-directory';
-import { useTheme } from '../theme/ThemeProvider';
-import { parseThemePreference } from '../theme/theme';
 import { MetadataSchemaManager } from './MetadataSchemaManager';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { TemplateSettings } from './TemplateSettings';
 import { PeriodNotesSettings } from './PeriodNotesSettings';
 import { AiSettings } from './AiSettings';
+import { PluginManager } from './PluginManager';
+import { ThemeManager } from './ThemeManager';
+import { PublishingManager } from './PublishingManager';
+import { PrivateShareManager } from './PrivateShareManager';
+import type { PluginHost } from '../lib/plugin-host';
 import { useAccount } from '../auth/AuthProvider';
 import type { CommandDefinition } from '../lib/commands';
 import type { ShortcutOverrides } from '../lib/shortcuts';
+import { canManage, memberRoleSchema, type MemberRole } from '../lib/sharing';
 import styles from './SettingsView.module.css';
 
 interface SettingsViewProps {
   workspace: ReturnType<typeof useVaultWorkspace>;
   sync: ReturnType<typeof useCloudSync>;
+  pwa: ReturnType<typeof usePwa>;
   onImport: () => void;
   onExport: () => void;
   onBack: () => void;
@@ -32,6 +38,7 @@ interface SettingsViewProps {
   commands: CommandDefinition[];
   shortcutOverrides: ShortcutOverrides;
   onShortcutChange: (id: string, shortcut: string | null | undefined) => string | null;
+  pluginHost: PluginHost;
 }
 
 function formatBytes(bytes: number): string {
@@ -41,9 +48,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 ** size)).toFixed(1)} ${units[size - 1] ?? 'TB'}`;
 }
 
-export function SettingsView({ workspace, sync, onImport, onExport, onBack, onOpenNote, onPreviewTemplate, onOpenNavigation, commands, shortcutOverrides, onShortcutChange }: SettingsViewProps) {
+export function SettingsView({ workspace, sync, pwa, onImport, onExport, onBack, onOpenNote, onPreviewTemplate, onOpenNavigation, commands, shortcutOverrides, onShortcutChange, pluginHost }: SettingsViewProps) {
   const account = useAccount();
-  const { preference, setPreference } = useTheme();
   const [usage, setUsage] = useState<string | null>(null);
   const [statistics, setStatistics] = useState<VaultStatistics | null>(null);
   const [directory, setDirectory] = useState<FileSystemDirectoryHandle | null>(null);
@@ -52,7 +58,13 @@ export function SettingsView({ workspace, sync, onImport, onExport, onBack, onOp
   const [name, setName] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [cloudVaults, setCloudVaults] = useState<{ id: string; name: string; encrypted: boolean }[]>([]);
+  const [cloudVaults, setCloudVaults] = useState<{ id: string; name: string; encrypted: boolean; shared: boolean }[]>([]);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareRole, setShareRole] = useState<MemberRole>('editor');
+  const [members, setMembers] = useState<{ userId: string; email: string; role: MemberRole }[]>([]);
+  const [invites, setInvites] = useState<{ id: string; vault_id: string; vault_name: string; role: MemberRole; expires_at: string }[]>([]);
+  const [sentInvites, setSentInvites] = useState<{ id: string; email: string; role: MemberRole; expires_at: string }[]>([]);
+  const [transfers, setTransfers] = useState<{ vault_id: string; vault_name: string; from_email: string; expires_at: string }[]>([]);
   const [encryptPassphrase, setEncryptPassphrase] = useState('');
   const [encryptConfirm, setEncryptConfirm] = useState('');
   const [unlockPassphrase, setUnlockPassphrase] = useState('');
@@ -131,10 +143,7 @@ export function SettingsView({ workspace, sync, onImport, onExport, onBack, onOp
         {statistics && <div className={styles.stats}><span><strong>{statistics.notes}</strong> notes</span><span><strong>{statistics.folders}</strong> folders</span><span><strong>{statistics.attachments}</strong> attachments</span><span><strong>{formatBytes(statistics.attachmentBytes)}</strong> files</span><span><strong>{statistics.trashed}</strong> in Trash</span></div>}
         {workspace.deletedVaults.length > 0 && <div className={styles.deletedVaults}><h3>Deleted vaults</h3>{workspace.deletedVaults.map((item) => <div key={item.id} className={styles.dataLine}><span>{item.name}</span><Button variant="secondary" onClick={() => { void workspace.restoreVault(item.id); }}>Restore vault</Button></div>)}</div>}
       </section>
-      <section className={styles.card} aria-labelledby="appearance-heading">
-        <div className={styles.sectionHeading}><h2 id="appearance-heading">Appearance</h2><p>Choose how your workspace looks.</p></div>
-        <Select label="Theme" value={preference} onChange={(event) => setPreference(parseThemePreference(event.target.value))} hint="System follows your device appearance setting."><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></Select>
-      </section>
+      <ThemeManager />
       <section className={styles.card} aria-labelledby="account-heading">
         <div className={styles.sectionHeading}><h2 id="account-heading">Account</h2><p>Sign-in is optional. Your vault remains available locally.</p></div>
         <div className={styles.dataLine}><ShieldCheck size={18} /><span>{account.user?.email ?? (account.configuration.kind === 'supabase' ? 'Not signed in' : 'Local-only workspace')}</span><span>{account.user ? 'Account connected' : 'No account required'}</span></div>
@@ -171,22 +180,49 @@ export function SettingsView({ workspace, sync, onImport, onExport, onBack, onOp
           {sync.enabled && <Button variant="secondary" onClick={() => { void sync.syncNow(); }}>Sync now</Button>}
         </div> : <p className={styles.helper}>Sign in to enable cloud sync. Your local vault is available without an account.</p>}
         {sync.enabled && <label className={styles.helper}><input type="checkbox" checked={sync.attachments} onChange={(event) => { void sync.changeAttachments(event.target.checked).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Attachment sync could not be changed.')); }} /> Sync attachments</label>}
+        {sync.enabled && sync.encryption === 'none' && sync.role && <div className={styles.encryptionPanel}>
+          <h3>Shared vault</h3><p>Your role: {sync.role}. Sharing is available for plaintext cloud vaults. Existing verified Noor Note accounts receive an invitation in the app; access begins when they accept.</p>
+          {canManage(sync.role) && <><label>Invite account email<input type="email" value={shareEmail} onChange={(event) => setShareEmail(event.target.value)} /></label>
+          <Select label="Invitation role" value={shareRole} onChange={(event) => setShareRole(memberRoleSchema.parse(event.target.value))}>{(['admin', 'editor', 'commenter', 'viewer'] as const).filter((item) => sync.role === 'owner' || item !== 'admin').map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</Select>
+          <div className={styles.actions}><Button variant="secondary" disabled={!shareEmail.trim()} onClick={() => { void sync.shareVault(shareEmail, shareRole).then(async () => { setShareEmail(''); setSentInvites(await sync.listSentInvites()); setSyncMessage('Invitation created. The recipient must accept it in Settings.'); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not invite this account.')); }}>Send invitation</Button><Button variant="ghost" onClick={() => { void sync.listSentInvites().then(setSentInvites).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not list invitations.')); }}>Show pending invitations</Button></div>
+          {sentInvites.map((invite) => <div className={styles.dataLine} key={invite.id}><span>{invite.email} · {invite.role} · pending</span><Button variant="ghost" disabled={sync.role === 'admin' && invite.role === 'admin'} onClick={() => { void sync.revokeInvite(invite.id).then(async () => { setSentInvites(await sync.listSentInvites()); setSyncMessage('Invitation revoked.'); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not revoke invitation.')); }}>Revoke</Button></div>)}</>}
+          <div className={styles.actions}><Button variant="ghost" onClick={() => { void sync.listMembers().then(setMembers).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not list members.')); }}>Show members</Button>{sync.role !== 'owner' && <Button variant="secondary" onClick={() => { void sync.leaveVault().then(() => setSyncMessage('You left the cloud vault. Your downloaded local copy remains on this device.')).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not leave the vault.')); }}>Leave shared vault</Button>}</div>
+          {members.map((member) => <div className={styles.dataLine} key={member.userId}><span>{member.email}</span>{canManage(sync.role) && (sync.role === 'owner' || member.role !== 'admin') ? <><Select label={`Role for ${member.email}`} value={member.role} onChange={(event) => { void sync.changeMemberRole(member.userId, memberRoleSchema.parse(event.target.value)).then(async () => { setMembers(await sync.listMembers()); setSyncMessage('Role updated.'); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not change role.')); }}>{(['admin', 'editor', 'commenter', 'viewer'] as const).filter((item) => sync.role === 'owner' || item !== 'admin').map((item) => <option key={item} value={item}>{item}</option>)}</Select><Button variant="ghost" onClick={() => { void sync.removeMember(member.userId).then(async () => { setMembers(await sync.listMembers()); setSyncMessage('Member removed.'); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not remove member.')); }}>Remove</Button>{sync.role === 'owner' && <Button variant="secondary" onClick={() => { void sync.requestTransfer(member.userId).then(() => setSyncMessage(`Ownership transfer offered to ${member.email}. They must accept within seven days; you remain owner until then.`)).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not request transfer.')); }}>Offer ownership</Button>}</> : <span>{member.role}</span>}</div>)}
+          {sync.role === 'owner' && <Button variant="ghost" onClick={() => { void sync.cancelTransfer().then(() => setSyncMessage('Pending ownership transfer canceled.')).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not cancel transfer.')); }}>Cancel pending transfer</Button>}
+        </div>}
+        {sync.available && <div className={styles.encryptionPanel}><h3>Invitations and ownership offers</h3><div className={styles.actions}><Button variant="secondary" onClick={() => { void Promise.all([sync.listInvites(), sync.listTransfers()]).then(([nextInvites, nextTransfers]) => { setInvites(nextInvites); setTransfers(nextTransfers); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not load invitations.')); }}>Check invitations</Button></div>
+          {invites.map((invite) => <div className={styles.dataLine} key={invite.id}><span>{invite.vault_name} · {invite.role}</span><Button variant="primary" onClick={() => { void sync.respondInvite(invite.id, true).then(async () => { setInvites(await sync.listInvites()); setCloudVaults(await sync.listRemoteVaults()); setSyncMessage('Invitation accepted. Download the shared vault below.'); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not accept invitation.')); }}>Accept</Button><Button variant="ghost" onClick={() => { void sync.respondInvite(invite.id, false).then(async () => setInvites(await sync.listInvites())).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not decline invitation.')); }}>Decline</Button></div>)}
+          {transfers.map((transfer) => <div className={styles.dataLine} key={transfer.vault_id}><span>{transfer.vault_name} · offered by {transfer.from_email}</span><Button variant="primary" onClick={() => { void sync.respondTransfer(transfer.vault_id, true).then(async () => { setTransfers(await sync.listTransfers()); setSyncMessage('You now own this cloud vault.'); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not accept transfer.')); }}>Accept ownership</Button><Button variant="ghost" onClick={() => { void sync.respondTransfer(transfer.vault_id, false).then(async () => setTransfers(await sync.listTransfers())).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not decline transfer.')); }}>Decline</Button></div>)}
+        </div>}
         {sync.available && <div className={styles.actions}><Button variant="secondary" onClick={() => { void sync.listRemoteVaults().then(setCloudVaults).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not list cloud vaults.')); }}>Browse cloud vaults</Button></div>}
-        {cloudVaults.filter((item) => !workspace.vaults.some((local) => local.id === item.id)).map((item) => <div key={item.id}><div className={styles.dataLine}><span>{item.name}{item.encrypted ? ' · encrypted' : ''}</span><Button variant="secondary" onClick={() => {
+        {cloudVaults.filter((item) => !workspace.vaults.some((local) => local.id === item.id)).map((item) => <div key={item.id}><div className={styles.dataLine}><span>{item.name}{item.encrypted ? ' · encrypted' : item.shared ? ' · shared with you' : ''}</span><Button variant="secondary" onClick={() => {
           setSyncMessage(null);
           if (item.encrypted) { setRestoreId(item.id); return; }
           void sync.restoreRemoteVault(item.id).then(() => workspace.switchVault(item.id)).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not restore cloud vault.'));
         }}>{item.encrypted ? 'Recover vault' : 'Download vault'}</Button></div>{restoreId === item.id && <div className={styles.encryptionPanel}><p>Enter the recovery code and choose a new passphrase for this device.</p><label>Recovery code<input type="password" autoComplete="off" value={restoreCode} onChange={(event) => setRestoreCode(event.target.value)} /></label><label>New encryption passphrase<input type="password" autoComplete="new-password" value={restorePassphrase} onChange={(event) => setRestorePassphrase(event.target.value)} /></label><div className={styles.actions}><Button variant="primary" disabled={!restoreCode || restorePassphrase.length < 12} onClick={() => { void sync.restoreRemoteVault(item.id, restoreCode, restorePassphrase).then(async () => { setRestoreCode(''); setRestorePassphrase(''); setRestoreId(null); await workspace.switchVault(item.id); }).catch((error: unknown) => setSyncMessage(error instanceof Error ? error.message : 'Could not recover cloud vault.')); }}>Recover and download</Button><Button variant="secondary" onClick={() => { setRestoreId(null); setRestoreCode(''); setRestorePassphrase(''); }}>Cancel</Button></div></div>}</div>)}
       </section>
       <AiSettings />
+      <PublishingManager workspace={workspace} sync={sync} />
+      <PrivateShareManager key={`${vaultId ?? 'no-vault'}:${account.user?.id ?? 'local'}`} workspace={workspace} sync={sync} />
       <KeyboardShortcuts commands={commands} overrides={shortcutOverrides} onChange={onShortcutChange} />
       <TemplateSettings workspace={workspace} onOpenNote={onOpenNote} onPreview={onPreviewTemplate} />
       <PeriodNotesSettings workspace={workspace} />
       <section className={styles.card} aria-labelledby="data-heading">
         <div className={styles.sectionHeading}><h2 id="data-heading">Your data</h2><p>Notes and metadata are stored in this browser. Larger attachments use private browser file storage when available.</p></div>
         <div className={styles.dataLine}><HardDrive size={18} /><span>{workspace.notes.length} {workspace.notes.length === 1 ? 'note' : 'notes'} in this vault</span><span>{usage ?? 'Browser storage'}</span></div>
-        <div className={styles.actions}><Button variant="secondary" onClick={onImport}><Upload size={16} /> Import Markdown or ZIP</Button><Button variant="secondary" onClick={onExport}><Download size={16} /> Export vault ZIP</Button></div>
+        <div className={styles.actions}><Button variant="secondary" onClick={onImport}><Upload size={16} /> Import Markdown or ZIP</Button><Button variant="secondary" onClick={onExport}><Download size={16} /> Export Center</Button></div>
         <p className={styles.helper}><ShieldCheck size={15} /> Export a ZIP before clearing browser data or moving to another device.</p>
+      </section>
+      <section className={styles.card} aria-labelledby="app-heading">
+        <div className={styles.sectionHeading}><h2 id="app-heading">Offline app</h2><p>Install Noor Note for a standalone window. Vault notes stay in this browser and remain available offline after the app shell is ready.</p></div>
+        <p className={styles.helper} role="status">{pwa.online ? pwa.offlineReady ? 'Online · App shell ready for offline use' : 'Online · Preparing offline app shell' : 'Offline · Local vault remains available'}{pwa.installed ? ' · Installed' : ''}</p>
+        {pwa.error && <p role="alert">{pwa.error}</p>}
+        <div className={styles.actions}>
+          {pwa.installAvailable && <Button variant="secondary" onClick={() => { void pwa.install(); }}>Install Noor Note</Button>}
+          {pwa.updateAvailable && <Button variant="secondary" onClick={() => { void pwa.applyUpdate(workspace.flushPending); }}>Update now</Button>}
+        </div>
+        {!pwa.installed && !pwa.installAvailable && <p className={styles.helper}>If your browser supports installation, use its Install app or Add to Home Screen menu.</p>}
+        <p className={styles.helper}>Offline readiness covers the app shell. Optional OCR and transcription files are cached after first use; browser storage can still be cleared or evicted.</p>
       </section>
       <section className={styles.card} aria-labelledby="directory-heading">
         <div className={styles.sectionHeading}><h2 id="directory-heading">Connected folder</h2><p>Write portable Markdown and attachments to a folder you choose. This is a manual export.</p></div>
@@ -196,6 +232,7 @@ export function SettingsView({ workspace, sync, onImport, onExport, onBack, onOp
         </div></> : <p className={styles.helper}>Folder access is unavailable in this browser. ZIP export remains available.</p>}
       </section>
       {vaultId && <MetadataSchemaManager vaultId={vaultId} folders={workspace.folders} repository={repository} onPut={workspace.putMetadataSchema} onDelete={workspace.deleteMetadataSchema} />}
+      <PluginManager host={pluginHost} />
       <section className={styles.card} aria-labelledby="about-heading">
         <div className={styles.sectionHeading}><h2 id="about-heading">About Noor Note</h2><p>A calmer place to collect and connect your ideas.</p></div>
         <div className={styles.about}><Info size={19} /><div><strong>Local-first workspace</strong><span>Markdown-first and private by default. Cloud sync is optional and must be enabled for each vault.</span></div></div>

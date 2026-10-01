@@ -1,12 +1,16 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, useInsertionEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { parseThemePreference, resolveTheme, THEME_CHANGE_EVENT, THEME_STORAGE_KEY, type ResolvedTheme, type ThemePreference } from './theme';
+import { compileCssSnippet, compileTheme, getAppearanceRevision, getAppearanceSnapshot, getServerAppearance, saveAppearance, subscribeAppearance } from './appearance';
 
 interface ThemeContextValue {
   preference: ThemePreference;
   resolvedTheme: ResolvedTheme;
+  activeThemeId: string | null;
+  appearanceRevision: number;
   setPreference: (preference: ThemePreference) => void;
+  activateTheme: (id: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -41,25 +45,41 @@ function subscribeSystemTheme(onStoreChange: () => void): () => void {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const preference = useSyncExternalStore(subscribePreference, getPreference, getServerPreference);
   const prefersDark = useSyncExternalStore(subscribeSystemTheme, getSystemDark, getServerDark);
-  const resolvedTheme = resolveTheme(preference, prefersDark);
+  const appearance = useSyncExternalStore(subscribeAppearance, getAppearanceSnapshot, getServerAppearance);
+  const activeTheme = appearance.themes.find((theme) => theme.id === appearance.activeThemeId) ?? null;
+  const resolvedTheme = activeTheme?.base ?? resolveTheme(preference, prefersDark);
+  const appearanceRevision = getAppearanceRevision();
 
-  useEffect(() => {
-    if (preference === 'system') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.dataset.theme = preference;
-  }, [preference]);
+  useInsertionEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    const themeStyle = document.getElementById('noor-note-custom-theme') ?? document.createElement('style');
+    themeStyle.id = 'noor-note-custom-theme';
+    themeStyle.textContent = compileTheme(activeTheme);
+    if (!themeStyle.isConnected) document.head.append(themeStyle);
+    const snippetStyle = document.getElementById('noor-note-css-snippets') ?? document.createElement('style');
+    snippetStyle.id = 'noor-note-css-snippets';
+    snippetStyle.textContent = appearance.snippets.filter((snippet) => snippet.enabled).map((snippet) => compileCssSnippet(snippet.source)).join('\n');
+    if (!snippetStyle.isConnected) document.head.append(snippetStyle);
+  }, [preference, resolvedTheme, activeTheme, appearance]);
 
   const value = useMemo<ThemeContextValue>(() => ({
     preference,
     resolvedTheme,
+    activeThemeId: activeTheme?.id ?? null,
+    appearanceRevision,
     setPreference(next) {
+      if (appearance.activeThemeId) saveAppearance({ ...appearance, activeThemeId: null });
       sessionPreference = next;
       try { window.localStorage.setItem(THEME_STORAGE_KEY, next); }
       catch { /* Browser storage may be disabled; retain this page's selection. */ }
-      if (next === 'system') document.documentElement.removeAttribute('data-theme');
-      else document.documentElement.dataset.theme = next;
+      document.documentElement.dataset.theme = resolveTheme(next, getSystemDark());
       window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
     },
-  }), [preference, resolvedTheme]);
+    activateTheme(id) {
+      if (!appearance.themes.some((theme) => theme.id === id)) throw new Error('Theme is not installed');
+      saveAppearance({ ...appearance, activeThemeId: id });
+    },
+  }), [preference, resolvedTheme, activeTheme, appearance, appearanceRevision]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

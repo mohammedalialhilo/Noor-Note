@@ -13,7 +13,7 @@ describe('version history comparison', () => {
 
   it('reports title, path, and property changes without mutating either snapshot', () => {
     const before = { id: crypto.randomUUID(), vaultId: crypto.randomUUID(), noteId: crypto.randomUUID(), number: 1, title: 'Draft', path: '/Draft.md', markdown: 'A', checksum: 'a'.repeat(64), createdAt: '2026-01-01T00:00:00.000Z', kind: 'manual', metadata: { folderId: null, aliases: ['Idea'], properties: { status: 'open' } } } satisfies Revision;
-    const after = { id: before.noteId, vaultId: before.vaultId, folderId: null, title: 'Final', path: '/Final.md', markdown: 'B', createdAt: before.createdAt, updatedAt: before.createdAt, deletedAt: null, trashGroupId: null, aliases: [], properties: { status: 'done' }, revision: 2, checksum: 'b'.repeat(64) } satisfies VaultNote;
+    const after = { id: before.noteId, vaultId: before.vaultId, folderId: null, title: 'Final', path: '/Final.md', markdown: 'B', createdAt: before.createdAt, updatedAt: before.createdAt, deletedAt: null, trashGroupId: null, aliases: [], properties: { status: 'done' }, collaborative: false, revision: 2, checksum: 'b'.repeat(64) } satisfies VaultNote;
     expect(diffRevisionMetadata(before, after).map((item) => item.field)).toEqual(['Title', 'Path', 'Aliases', 'Property: status']);
     expect(before.metadata.properties.status).toBe('open');
   });

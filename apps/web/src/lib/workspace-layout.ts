@@ -17,7 +17,7 @@ export const calendarLayoutSchema = z.object({
 }).strict();
 export type CalendarLayout = z.infer<typeof calendarLayoutSchema>;
 export const workspaceLayoutSchema = z.object({
-  version: z.literal(1), view: z.enum(['notes', 'periods', 'tasks', 'tags', 'graph', 'bases', 'canvas', 'chat', 'organize', 'trash', 'settings']),
+  version: z.literal(1), view: z.enum(['dashboard', 'notes', 'periods', 'tasks', 'study', 'tags', 'graph', 'bases', 'canvas', 'chat', 'organize', 'activity', 'trash', 'settings']),
   editor: z.object({ root: editorNodeSchema, activePaneId: uuid, selectedNoteId: uuid.nullable(), closedTabs: z.array(z.object({ paneId: uuid, tab: tabSchema }).strict()).max(30).default([]) }).strict(),
   sidebars: z.object({ navigationOpen: z.boolean(), inspectorOpen: z.boolean(), navigationWidth: z.number().int().min(180).max(420), noteListWidth: z.number().int().min(220).max(600), inspectorWidth: z.number().int().min(180).max(520) }).strict(),
   graph: z.object({ scope: z.enum(['global', 'local']), filters: z.object({ showTags: z.boolean(), showAttachments: z.boolean(), showLinks: z.boolean(), showEmbeds: z.boolean(), showTagEdges: z.boolean(), hideOrphans: z.boolean() }).strict(), query: z.string().max(200), depth: z.number().int().min(1).max(4), direction: z.enum(['both', 'inbound', 'outbound']), grouping: z.enum(['type', 'folder']), nodeSize: z.enum(['uniform', 'connections']) }).strict(),

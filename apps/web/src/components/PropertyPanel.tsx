@@ -10,13 +10,15 @@ interface Props {
   repository: VaultRepository | null;
   onUpdate: (id: string, name: string, value: PropertyValue | undefined, type?: PropertyType, options?: string[]) => Promise<VaultNote | undefined>;
   onApplyDefaults: (id: string, schemas: MetadataSchema[]) => Promise<VaultNote | undefined>;
+  pluginPropertyTypes?: { id: string; title: string; valueKind: 'text' | 'number' | 'boolean'; options?: string[] }[];
 }
 
-export function PropertyPanel({ note, repository, onUpdate, onApplyDefaults }: Props) {
+export function PropertyPanel({ note, repository, onUpdate, onApplyDefaults, pluginPropertyTypes = [] }: Props) {
   const [schemas, setSchemas] = useState<MetadataSchema[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [type, setType] = useState<PropertyType>('text');
+  const [presetId, setPresetId] = useState('');
   const [value, setValue] = useState('');
   const [optionsText, setOptionsText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +39,10 @@ export function PropertyPanel({ note, repository, onUpdate, onApplyDefaults }: P
   const fieldFor = (key: string) => fields.find((field) => field.name === key);
   const entries = Object.entries(metadata.data?.values ?? {});
   const missingDefaults = fields.filter((field) => field.defaultValue !== undefined && !Object.hasOwn(metadata.data?.values ?? {}, field.name));
-  const startAdd = () => { setEditing(''); setName(''); setType('text'); setValue(''); setOptionsText(''); setError(null); };
+  const startAdd = () => { setEditing(''); setName(''); setType('text'); setPresetId(''); setValue(''); setOptionsText(''); setError(null); };
   const startEdit = (key: string, current: PropertyValue) => {
     const field = fieldFor(key);
-    setEditing(key); setName(key); setType(metadata.data?.types[key] ?? field?.type ?? inferPropertyType(current));
+    setEditing(key); setName(key); setPresetId(''); setType(metadata.data?.types[key] ?? field?.type ?? inferPropertyType(current));
     setValue(formatPropertyInput(current));
     setOptionsText((metadata.data?.options[key] ?? field?.options ?? []).join(', '));
     setError(null);
@@ -81,7 +83,8 @@ export function PropertyPanel({ note, repository, onUpdate, onApplyDefaults }: P
     {editing !== null && <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <h4>{editing ? `Edit ${editing}` : 'Add property'}</h4>
       <label>Name <input required maxLength={100} value={name} disabled={Boolean(editing)} onChange={(event) => setName(event.target.value)} /></label>
-      <label>Type <select value={type} onChange={(event) => setType(propertyTypeSchema.parse(event.target.value))}>{propertyTypeSchema.options.map((item) => <option key={item} value={item}>{item.replace(/([A-Z])/gu, ' $1').toLowerCase()}</option>)}</select></label>
+      {pluginPropertyTypes.length > 0 && <label>Plugin property preset <select value={presetId} onChange={(event) => { const selected = pluginPropertyTypes.find((item) => item.id === event.target.value); setPresetId(event.target.value); if (selected) { setType(selected.options?.length ? 'singleSelect' : selected.valueKind); setOptionsText(selected.options?.join(', ') ?? ''); } }}><option value="">None</option>{pluginPropertyTypes.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>}
+      <label>Type <select value={type} onChange={(event) => { setPresetId(''); setType(propertyTypeSchema.parse(event.target.value)); }}>{propertyTypeSchema.options.map((item) => <option key={item} value={item}>{item.replace(/([A-Z])/gu, ' $1').toLowerCase()}</option>)}</select></label>
       {(type === 'singleSelect' || type === 'multiSelect') && <label>Options, separated by commas <input value={optionsText} onChange={(event) => setOptionsText(event.target.value)} placeholder="Open, In progress, Done" /></label>}
       <label>Value {type === 'boolean' ? <select value={value || 'false'} onChange={(event) => setValue(event.target.value)}><option value="false">False</option><option value="true">True</option></select> : type === 'singleSelect' && optionsText.trim() ? <select value={value} onChange={(event) => setValue(event.target.value)}><option value="">Choose…</option>{optionsText.split(',').map((item) => item.trim()).filter(Boolean).map((item) => <option key={item} value={item}>{item}</option>)}</select> : <input required={type !== 'list' && type !== 'multiSelect'} type={type === 'date' ? 'date' : type === 'datetime' ? 'datetime-local' : type === 'number' || type === 'rating' ? 'number' : type === 'email' ? 'email' : type === 'url' ? 'url' : 'text'} min={type === 'rating' ? 0 : undefined} max={type === 'rating' ? 5 : undefined} step={type === 'rating' ? 0.5 : type === 'number' ? 'any' : undefined} value={value} onChange={(event) => setValue(event.target.value)} placeholder={type === 'tag' ? '#nested/tag' : type === 'noteReference' ? '[[Note]]' : type === 'list' || type === 'multiSelect' ? 'One, Two' : type === 'location' ? 'City or coordinates' : undefined} />}</label>
       <div className={styles.actions}><button type="button" onClick={() => { setEditing(null); setError(null); }}>Cancel</button><button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save property'}</button></div>

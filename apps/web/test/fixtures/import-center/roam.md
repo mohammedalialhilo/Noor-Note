@@ -1,0 +1,2 @@
+- [[Research]] and a Roam-style outline
+    - Child bullet

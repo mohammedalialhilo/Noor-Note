@@ -5,6 +5,8 @@ import { toNoteEntry } from '@noor-note/storage';
 import { createRef } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { MarkdownEditor, defaultEditorPreferences, type MarkdownEditorHandle } from '../src/components/MarkdownEditor';
+import * as Y from 'yjs';
+import { Awareness } from 'y-protocols/awareness';
 
 beforeAll(() => {
   class ResizeObserverStub { observe() {} unobserve() {} disconnect() {} }
@@ -22,6 +24,35 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe('CodeMirror Markdown editor', () => {
+  it('lets commenters select source text without making it editable', () => {
+    const ref = createRef<MarkdownEditorHandle>();
+    const onChange = vi.fn();
+    const { container } = render(<MarkdownEditor ref={ref} value="Before selected after" onChange={onChange} label="Read-only note source" readOnly />);
+    expect(container.querySelector('.cm-content')?.getAttribute('aria-readonly')).toBe('true');
+    expect(container.querySelector<HTMLElement>('.cm-content')?.tabIndex).toBeGreaterThanOrEqual(0);
+    act(() => ref.current?.selectRange(7, 15));
+    expect(ref.current?.getSelectionRange()).toEqual({ from: 7, to: 15, text: 'selected' });
+    expect(screen.queryByRole('toolbar', { name: 'Selection formatting' })).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+  it('binds CodeMirror edits and remote Yjs updates without replacing Markdown from a stale prop', () => {
+    const doc = new Y.Doc();
+    const text = doc.getText('markdown');
+    text.insert(0, 'Start');
+    const awareness = new Awareness(doc);
+    const ref = createRef<MarkdownEditorHandle>();
+    const onChange = vi.fn();
+    const { container, rerender, unmount } = render(<MarkdownEditor ref={ref} value="Start" onChange={onChange} label="Shared source" collaboration={{ text, awareness }} />);
+    act(() => ref.current?.insertText('Local '));
+    expect(text.toString()).toContain('Local');
+    act(() => { text.insert(text.length, ' remote'); });
+    expect(container.querySelector('.cm-content')?.textContent).toContain('remote');
+    rerender(<MarkdownEditor ref={ref} value="Start" onChange={onChange} label="Shared source" collaboration={{ text, awareness }} />);
+    expect(text.toString()).toContain('Local');
+    expect(text.toString()).toContain('remote');
+    expect(onChange).not.toHaveBeenCalled();
+    unmount(); awareness.destroy(); doc.destroy();
+  });
   it('edits source with commands, retains undo history, and opens find and replace', () => {
     const ref = createRef<MarkdownEditorHandle>();
     const onChange = vi.fn();

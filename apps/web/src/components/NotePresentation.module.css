@@ -1,0 +1,28 @@
+.presentation:global(.nn-dialog) { position: fixed; inset: 0; top: 0; left: 0; transform: none; z-index: 200; box-sizing: border-box; width: 100vw; height: 100dvh; max-height: none; padding: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--nn-bg); }
+.presentation:global(.nn-dialog) :global(.nn-dialog__close) { display: none; }
+.toolbar, .footer { display: flex; align-items: center; gap: .75rem; flex: none; padding: .75rem 1.25rem; background: var(--nn-surface); }
+.toolbar { border-bottom: 1px solid var(--nn-border); padding-right: 1.25rem; flex-wrap: wrap; }
+.footer { border-top: 1px solid var(--nn-border); }
+.title { margin: 0 auto 0 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; }
+.counter { color: var(--nn-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.toolbar button, .footer button { min-height: 2.5rem; padding: .35rem .8rem; border: 1px solid var(--nn-border); border-radius: .5rem; background: var(--nn-surface-raised); color: var(--nn-text); cursor: pointer; }
+.toolbar button:hover, .footer button:hover { background: var(--nn-accent-subtle); }
+.toolbar button:focus-visible, .footer button:focus-visible { outline: 2px solid var(--nn-accent); outline-offset: 2px; }
+.footer button:disabled { opacity: .45; cursor: default; }
+.body { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; }
+.withNotes { grid-template-columns: minmax(0, 1fr) minmax(14rem, 25vw); }
+.stage { min-width: 0; overflow: auto; display: grid; place-items: center; padding: clamp(1rem, 4vw, 4rem); }
+.slide { width: min(100%, 72rem); max-height: 100%; overflow: auto; color: var(--nn-text); }
+.slide :global(.markdown-preview) { font-size: clamp(1rem, 1.5vw + .65rem, 1.75rem); line-height: 1.55; }
+.slide :global(.markdown-preview h1) { font-size: clamp(2rem, 4vw, 4rem); }
+.slide :global(.markdown-preview h2) { font-size: clamp(1.5rem, 3vw, 3rem); }
+.slide :global(.markdown-preview img) { max-height: 60vh; }
+.slide :global(.markdown-preview pre), .slide :global(.markdown-preview table) { max-width: 100%; overflow-x: auto; }
+.notes { overflow: auto; border-left: 1px solid var(--nn-border); padding: 1.5rem; background: var(--nn-surface); }
+.notes h2 { margin: 0 0 1rem; font-size: 1rem; }
+.notes pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.6; }
+.notes p, .empty, .hint { color: var(--nn-text-muted); }
+.footer progress { flex: 1; height: .5rem; accent-color: var(--nn-accent); }
+.hint { flex: none; margin: 0; padding: .35rem 1rem .6rem; text-align: center; font-size: .75rem; background: var(--nn-surface); }
+.error { margin: 0; padding: .5rem 1rem; color: var(--nn-danger); background: var(--nn-surface); }
+@media (max-width: 700px) { .toolbar { gap: .4rem; padding: .5rem; }.title { flex-basis: 100%; }.toolbar button { flex: 1; }.counter { order: -1; }.withNotes { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(7rem, 30vh); }.notes { border-left: 0; border-top: 1px solid var(--nn-border); padding: .75rem; }.hint { display: none; } }

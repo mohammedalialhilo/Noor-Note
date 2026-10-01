@@ -1,9 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
-import { attachmentSchema, makeVaultNote, ocrRecordSchema, transcriptSchema, type VaultNote } from '@noor-note/core';
+import { attachmentSchema, makeVaultNote, ocrRecordSchema, transcriptSchema, vaultSchema, type VaultNote } from '@noor-note/core';
 import { toNoteEntry, type VaultRepository } from '@noor-note/storage';
 import { SearchClient } from '../src/lib/search-client';
 
 describe('search client', () => {
+  it('uses a current tree snapshot and batches only changed bodies', async () => {
+    const vaultId = crypto.randomUUID();
+    const note = await makeVaultNote({ vaultId, title: 'First', markdown: 'orchid' });
+    let current = note;
+    const getNotes = vi.fn(async () => [current]);
+    const listTree = vi.fn();
+    const repository = { getNotes, listTree, listObjects: async () => [] } as unknown as VaultRepository;
+    const vault = vaultSchema.parse({ id: vaultId, name: 'Test', createdAt: note.createdAt, updatedAt: note.updatedAt, deletedAt: null, settings: { sortBy: 'name', sortDirection: 'asc' } });
+    const snapshot = () => ({ vault, folders: [], attachments: [], notes: [toNoteEntry(current)] });
+    const client = new SearchClient();
+    expect(await client.search(repository, vaultId, 'orchid', 20, snapshot())).toHaveLength(1);
+    expect(await client.search(repository, vaultId, 'orchid', 20, snapshot())).toHaveLength(1);
+    expect(getNotes).toHaveBeenCalledTimes(1);
+    current = { ...note, markdown: 'marigold', revision: 2 };
+    expect(await client.search(repository, vaultId, 'marigold', 20, snapshot())).toHaveLength(1);
+    expect(getNotes).toHaveBeenCalledTimes(2);
+    expect(listTree).not.toHaveBeenCalled();
+    client.close();
+  });
+
   it('fetches bodies once, then only changed revisions and removes deleted notes', async () => {
     const vaultId = crypto.randomUUID();
     const one = await makeVaultNote({ vaultId, title: 'One', markdown: 'orchid' });

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps, ComponentPropsWithRef, ReactElement, ReactNode } from "react";
+import { useRef, type ComponentProps, type ComponentPropsWithRef, type ReactElement, type ReactNode } from "react";
 import {
   ContextMenu as ContextMenuPrimitive,
   Dialog as DialogPrimitive,
@@ -63,10 +63,11 @@ export const DialogClose = DialogPrimitive.Close;
 export const DialogTitle = DialogPrimitive.Title;
 export const DialogDescription = DialogPrimitive.Description;
 
-export function DialogContent({ className, children, ...props }: ComponentPropsWithRef<typeof DialogPrimitive.Content>) {
+export function DialogContent({ className, children, onOpenAutoFocus, onCloseAutoFocus, ...props }: ComponentPropsWithRef<typeof DialogPrimitive.Content>) {
+  const previousFocus = useRef<HTMLElement | null>(null);
   return <DialogPrimitive.Portal>
     <DialogPrimitive.Overlay className="nn-dialog__overlay" />
-    <DialogPrimitive.Content {...props} className={classes("nn-dialog", className)}>
+    <DialogPrimitive.Content {...props} className={classes("nn-dialog", className)} onOpenAutoFocus={(event) => { previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; onOpenAutoFocus?.(event); }} onCloseAutoFocus={(event) => { onCloseAutoFocus?.(event); if (!event.defaultPrevented && previousFocus.current?.isConnected) { event.preventDefault(); previousFocus.current.focus(); } }}>
       {children}
       <DialogPrimitive.Close className="nn-dialog__close" aria-label="Close dialog">×</DialogPrimitive.Close>
     </DialogPrimitive.Content>

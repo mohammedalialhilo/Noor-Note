@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "corepack pnpm --filter @noor-note/web dev",
-    "lint": "corepack pnpm --filter @noor-note/web lint && corepack pnpm exec eslint packages",
+    "lint": "corepack pnpm -r --if-present lint && corepack pnpm exec eslint packages",
     "typecheck": "corepack pnpm -r --if-present typecheck",
     "test": "corepack pnpm -r --if-present test",
     "build": "corepack pnpm -r --if-present build"

@@ -565,7 +565,24 @@ export class DexieVaultRepository implements VaultRepository {
     return vaultNoteSchema.parse({ ...metadata, markdown: body.markdown });
   }
 
-  async saveNote(id: string, patch: Partial<Pick<VaultNote, 'title' | 'markdown' | 'aliases' | 'properties'>>, forceCheckpoint = false): Promise<VaultNote> {
+  async getNotes(ids: readonly string[]): Promise<VaultNote[]> {
+    if (!ids.length) return [];
+    const [entries, bodies] = await Promise.all([
+      this.database.noteEntries.bulkGet([...ids]),
+      this.database.noteBodies.bulkGet([...ids]),
+    ]);
+    const notes: VaultNote[] = [];
+    for (let index = 0; index < ids.length; index += 1) {
+      const entry = entries[index];
+      const body = bodies[index];
+      if (!entry || !body) continue;
+      const metadata = Object.fromEntries(Object.entries(entry).filter(([key]) => !['excerpt', 'tags', 'links', 'tasks', 'taskCount'].includes(key)));
+      notes.push(vaultNoteSchema.parse({ ...metadata, markdown: body.markdown }));
+    }
+    return notes;
+  }
+
+  async saveNote(id: string, patch: Partial<Pick<VaultNote, 'title' | 'markdown' | 'aliases' | 'properties' | 'collaborative'>>, forceCheckpoint = false): Promise<VaultNote> {
     const current = await this.getNote(id);
     if (!current || current.deletedAt) throw new Error('Note not found');
     const markdown = patch.markdown ?? current.markdown;
@@ -580,7 +597,7 @@ export class DexieVaultRepository implements VaultRepository {
       updatedAt: new Date(Math.max(Date.now(), Date.parse(current.updatedAt) + 1)).toISOString(),
       revision: current.revision + 1, checksum: await checksumMarkdown(markdown),
     });
-    if (next.title === current.title && next.markdown === current.markdown && next.path === current.path &&
+    if (next.title === current.title && next.markdown === current.markdown && next.path === current.path && next.collaborative === current.collaborative &&
       JSON.stringify(next.aliases) === JSON.stringify(current.aliases) && JSON.stringify(next.properties) === JSON.stringify(current.properties)) return current;
     return this.database.transaction('rw', this.database.noteEntries, this.database.noteBodies, this.database.reservations, this.database.revisions, async () => {
       const latest = await this.database.noteEntries.get(id);

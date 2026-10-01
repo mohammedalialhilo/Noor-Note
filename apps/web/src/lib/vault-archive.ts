@@ -1,4 +1,4 @@
-import { baseSchema, canvasDocumentSchema, canvasSchema, checksumMarkdown, metadataSchemaSchema, newCanvas, ocrRecordSchema, pdfAnnotationSchema, readBaseDefinition, readCanvasDocument, revisionSchema, transcriptSchema, vaultArchiveManifestSchema, type Canvas, type PeriodKind, type PeriodNotesSettings, type Revision, type VaultArchiveManifest } from '@noor-note/core';
+import { baseSchema, canvasDocumentSchema, canvasSchema, checksumMarkdown, dashboardSchema, metadataSchemaSchema, newCanvas, ocrRecordSchema, pdfAnnotationSchema, readBaseDefinition, readCanvasDocument, revisionSchema, studyCardSchema, transcriptSchema, vaultArchiveManifestSchema, type Canvas, type PeriodKind, type PeriodNotesSettings, type Revision, type VaultArchiveManifest } from '@noor-note/core';
 import type { VaultRepository } from '@noor-note/storage';
 import { parseWorkspaceLayout, remapWorkspaceLayout, WorkspacesStore } from './workspace-layout';
 import { BookmarksStore } from './bookmarks';
@@ -30,6 +30,8 @@ export async function exportVaultZip(repository: VaultRepository, vaultId: strin
   const canvases = folderPath ? [] : (await repository.listObjects('canvas', vaultId)).map((item) => canvasSchema.parse(item));
   for (const canvas of canvases) readCanvasDocument(canvas);
   const workspaces = folderPath ? [] : await new WorkspacesStore(repository, vaultId).list();
+  const dashboards = folderPath ? [] : (await repository.listObjects('dashboard', vaultId)).map((item) => dashboardSchema.parse(item));
+  const studyCards = (await repository.listObjects('studyCard', vaultId)).map((item) => studyCardSchema.parse(item)).filter((card) => notes.some((note) => note.id === card.sourceNoteId));
   const bookmarks = folderPath ? [] : await new BookmarksStore(repository, vaultId).list();
   const pdfAnnotations = (await repository.listObjects('pdfAnnotation', vaultId)).map((item) => pdfAnnotationSchema.parse(item)).filter((item) => attachments.some((attachment) => attachment.id === item.attachmentId));
   const ocrRecords = (await repository.listObjects('ocrRecord', vaultId)).map((item) => ocrRecordSchema.parse(item)).filter((item) => attachments.some((attachment) => attachment.id === item.attachmentId));
@@ -51,6 +53,8 @@ export async function exportVaultZip(repository: VaultRepository, vaultId: strin
     bases,
     canvases,
     workspaces,
+    dashboards,
+    studyCards,
     bookmarks,
     pdfAnnotations,
     ocrRecords,
@@ -114,9 +118,11 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
       const definition = readBaseDefinition(base);
       const folderId = definition.query.folderId ? folderIds.get(definition.query.folderId) : null;
       if (definition.query.folderId && !folderId) throw new Error('Base query folder is missing');
+      const formFolderId = definition.form.targetFolderId ? folderIds.get(definition.form.targetFolderId) : null;
+      if (definition.form.targetFolderId && !formFolderId) throw new Error('Base form destination folder is missing');
       const id = crypto.randomUUID();
       baseIds.set(base.id, id);
-      await repository.putObject('base', { ...base, id, vaultId: vault.id, definition: { ...definition, query: { ...definition.query, folderId } } });
+      await repository.putObject('base', { ...base, id, vaultId: vault.id, definition: { ...definition, query: { ...definition.query, folderId }, form: { ...definition.form, targetFolderId: formFolderId, noteTemplateId: null } } });
     }
     for (const schema of manifest.metadataSchemas ?? []) {
       const selector = schema.scope === 'folder' ? folderIds.get(schema.selector) : schema.scope === 'base' ? baseIds.get(schema.selector) : schema.selector;
@@ -133,6 +139,16 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
       if (note.folderId && !folderId) throw new Error('ZIP note folder is missing');
       const created = await repository.importNote(vault.id, folderId ?? null, { ...note, markdown });
       noteIds.set(note.id, created.id);
+    }
+    for (const source of manifest.bases ?? []) {
+      const templateId = readBaseDefinition(source).form.noteTemplateId;
+      if (!templateId) continue;
+      const mapped = noteIds.get(templateId);
+      if (!mapped) throw new Error('Base form note template is missing');
+      const imported = (await repository.listObjects('base', vault.id)).find((item) => item.id === baseIds.get(source.id));
+      if (!imported) throw new Error('Imported Base is unavailable');
+      const definition = readBaseDefinition(baseSchema.parse(imported));
+      await repository.putObject('base', { ...imported, definition: { ...definition, form: { ...definition.form, noteTemplateId: mapped } } });
     }
     const attachmentIds = new Map<string, string>();
     for (const attachment of manifest.attachments) {
@@ -222,6 +238,14 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
     for (const saved of manifest.workspaces ?? []) {
       const layout = remapWorkspaceLayout(parseWorkspaceLayout(saved.layout), noteIds, canvasIds, baseIds, folderIds);
       await workspaceStore.create(saved.name, layout);
+    }
+    for (const saved of manifest.dashboards ?? []) {
+      await repository.putObject('dashboard', dashboardSchema.parse({ ...saved, id: crypto.randomUUID(), vaultId: vault.id, widgets: saved.widgets.map((widget) => ({ ...widget, id: crypto.randomUUID(), baseId: widget.baseId ? baseIds.get(widget.baseId) ?? null : null })) }));
+    }
+    for (const saved of manifest.studyCards ?? []) {
+      const sourceNoteId = noteIds.get(saved.sourceNoteId);
+      if (!sourceNoteId) throw new Error('Study card source note is missing');
+      await repository.putObject('studyCard', studyCardSchema.parse({ ...saved, id: crypto.randomUUID(), vaultId: vault.id, sourceNoteId }));
     }
     const sourceTemplates = manifest.vault.settings.templates;
     const folderTemplates = Object.fromEntries(Object.entries(sourceTemplates.folderTemplates).flatMap(([folderId, templateId]) => {
