@@ -43,4 +43,21 @@ describe('portable metadata', () => {
     expect(inspectMetadata(applyMetadataDefaults('# Note', schemas)).values.status).toBe('Draft');
     expect(inspectMetadata(applyMetadataDefaults('---\nstatus: Done\n---\n# Note', schemas)).values.status).toBe('Done');
   });
+
+  it('keeps prototype-shaped YAML keys inert while preserving the source', () => {
+    const source = '---\n__proto__:\n  polluted: true\nconstructor: forged\nnoor_property_types:\n  __proto__: text\nstatus: draft\n---\n# Note';
+    const metadata = inspectMetadata(source);
+    expect(Object.getPrototypeOf(metadata.values)).toBeNull();
+    expect(Object.getPrototypeOf(metadata.types)).toBeNull();
+    expect(metadata.values.status).toBe('draft');
+    expect(Object.hasOwn(metadata.values, '__proto__')).toBe(false);
+    expect(Object.hasOwn(metadata.values, 'constructor')).toBe(false);
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+    const updated = updateFrontmatterProperty(source, 'status', 'review');
+    expect(updated).toContain('__proto__:');
+    expect(inspectMetadata(updated).values.status).toBe('review');
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+      expect(() => updateFrontmatterProperty(source, key, 'unsafe')).toThrow('Invalid property name');
+    }
+  });
 });

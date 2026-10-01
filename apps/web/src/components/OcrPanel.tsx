@@ -9,6 +9,7 @@ import type { useVaultWorkspace } from '../hooks/useVaultWorkspace';
 import { BrowserTesseractOcrProvider, type OcrProvider, type OcrSession } from '../lib/ocr-provider';
 import { OcrStore, type OcrDraft } from '../lib/ocr-store';
 import { isOcrImage } from '../lib/ocr-source';
+import { previewImageMime, safeAttachmentPreview } from '../lib/safe-attachment-preview';
 import { PdfPage } from './PdfPage';
 import styles from './OcrPanel.module.css';
 
@@ -94,8 +95,10 @@ export function OcrPanel({ workspace, initialAttachmentId = null, initialPage = 
     void repository.getAttachmentBlob(attachmentId).then(async (blob) => {
       if (!blob) throw new Error('The original file is missing from local storage.');
       if (!live) return;
-      url = URL.createObjectURL(blob);
-      setSourceBlob(blob); setSourceUrl(url);
+      const preview = await safeAttachmentPreview(blob, isPdf ? 'application/pdf' : previewImageMime(attachment?.mime ?? '', attachment?.name ?? ''));
+      if (!preview) throw new Error('The file bytes do not match a supported preview type.');
+      url = URL.createObjectURL(preview);
+      setSourceBlob(preview); setSourceUrl(url);
       if (isPdf) {
         const pdfjs = await import('pdfjs-dist');
         if (!live) return;
@@ -107,7 +110,7 @@ export function OcrPanel({ workspace, initialAttachmentId = null, initialPage = 
       }
     }).catch((caught) => { if (live) setError(caught instanceof Error ? caught.message : 'Could not open the OCR source.'); });
     return () => { live = false; if (task) void task.destroy(); if (url) URL.revokeObjectURL(url); };
-  }, [attachmentId, repository, isPdf]);
+  }, [attachmentId, repository, isPdf, attachment?.mime, attachment?.name]);
   useEffect(() => {
     if (!store || !attachmentId) return;
     let live = true;

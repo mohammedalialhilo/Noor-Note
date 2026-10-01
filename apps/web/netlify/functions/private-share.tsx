@@ -29,6 +29,8 @@ function headers(type = 'text/html; charset=utf-8'): Record<string, string> {
   return {
     'Content-Type': type, 'Cache-Control': 'private, no-store, max-age=0',
     'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'Strict-Transport-Security': 'max-age=31536000',
     'Content-Security-Policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
   };
 }

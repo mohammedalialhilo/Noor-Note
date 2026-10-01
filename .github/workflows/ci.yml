@@ -34,5 +34,7 @@ jobs:
         run: corepack pnpm build
       - name: Install Chromium for accessibility workflows
         run: corepack pnpm --filter @noor-note/web exec playwright install --with-deps chromium
+      - name: Production export smoke check
+        run: corepack pnpm --filter @noor-note/web test:deploy
       - name: Browser accessibility workflows
         run: corepack pnpm --filter @noor-note/web test:e2e

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePluginMessage, pluginBundleSchema, supportsNoorVersion, validateContribution, validateGrant } from '../src';
+import { isPublicPluginNetworkOrigin, parsePluginMessage, pluginBundleSchema, supportsNoorVersion, validateContribution, validateGrant } from '../src';
 
 const bundle = {
   manifest: {
@@ -50,5 +50,19 @@ describe('plugin SDK validation', () => {
     expect(() => parsePluginMessage({ type: 'request', id: crypto.randomUUID(), action: 'notes.delete', payload: {} })).toThrow();
     expect(() => parsePluginMessage({ type: 'register', contribution: { kind: 'command', id: 'x', title: 'X', handler: 'evil' } })).toThrow();
     expect(() => parsePluginMessage({ type: 'invoke-result', id: crypto.randomUUID(), ok: true, value: 'x'.repeat(300_000) })).toThrow('too large');
+  });
+
+  it('denies local network and credential-bearing plugin origins', () => {
+    expect(isPublicPluginNetworkOrigin('https://example.test/')).toBe(true);
+    for (const origin of [
+      'https://localhost/', 'https://service.local/', 'https://metadata.google.internal/',
+      'https://127.0.0.1/', 'https://[::1]/', 'https://192.168.1.5/',
+      'https://example.test:8443/', 'https://user:secret@example.test/',
+    ]) {
+      expect(isPublicPluginNetworkOrigin(origin)).toBe(false);
+      expect(() => pluginBundleSchema.parse({
+        ...bundle, manifest: { ...bundle.manifest, permissions: [...bundle.manifest.permissions, 'network'], networkOrigins: [origin] },
+      })).toThrow();
+    }
   });
 });

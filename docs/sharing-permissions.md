@@ -2,6 +2,8 @@
 
 **Status: PARTIAL.** Noor Note shares an entire plaintext cloud vault, including its notes and attachments, with verified Noor Note accounts. Folder and individual note grants are reserved for a future path-aware policy; `noor_has_scope_permission` denies those scopes today. Encrypted vaults remain private until shared-key distribution is implemented.
 
+Apply [database security migration 202610010001](../supabase/migrations/202610010001_noor_database_security.sql) after the publishing and private-share migrations. It removes execute access from the old immediate-add member RPC; use invitations and recipient acceptance. It also lets Auth deletion revoke memberships without historical author references blocking the deletion. See the [database security audit](database-security.md).
+
 Apply [sharing migration 004](../supabase/migrations/202609290004_noor_sharing_permissions.sql) after the first three cloud migrations, then [comment migration 005](../supabase/migrations/202609290005_noor_comment_threads.sql) and [activity migration 006](../supabase/migrations/202609300001_noor_activity_history.sql). Existing accepted collaborators retain the `editor` role. These migrations add database-derived roles, pending invitations, threaded comments, shared activity, guarded ownership transfer, and an immutable `storage_owner_id` so attachment paths survive a change of owner.
 
 | Role | Read vault | Comment | Edit notes and attachments | Invite and manage members | Transfer ownership |

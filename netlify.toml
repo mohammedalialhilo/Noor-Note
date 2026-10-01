@@ -5,9 +5,24 @@
 [build.environment]
   NODE_VERSION = "24"
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  PNPM_FLAGS = "--shamefully-hoist"
 
 [functions]
   directory = "apps/web/netlify/functions"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=(), payment=(), fullscreen=(self)"
+    X-Frame-Options = "DENY"
+    Strict-Transport-Security = "max-age=31536000"
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
   for = "/sw.js"

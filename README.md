@@ -56,4 +56,4 @@ corepack pnpm build
 
 The build exports `apps/web/out` and generates `sw.js`. Netlify configuration is in `netlify.toml`.
 
-See [architecture](docs/architecture.md), [data model](docs/data-model.md), [storage](docs/storage.md), [security](docs/security.md), [sync protocol](docs/sync-protocol.md), [accessibility](docs/accessibility.md), and [development](docs/development.md).
+See [architecture](docs/architecture.md), [data model](docs/data-model.md), [storage](docs/storage.md), [security](docs/security.md), [sync protocol](docs/sync-protocol.md), [accessibility](docs/accessibility.md), [Netlify deployment](docs/deployment-netlify.md), and [development](docs/development.md).

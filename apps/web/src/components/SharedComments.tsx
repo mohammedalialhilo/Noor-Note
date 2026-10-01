@@ -9,8 +9,8 @@ import { canComment, canEdit, canManage, type VaultRole } from '../lib/sharing';
 import { commentAnchorSchema, resolveTextCommentAnchor, type CommentAnchor } from '../lib/comment-anchor';
 import styles from './SharedComments.module.css';
 
-const threadSchema = z.object({ id: z.uuid(), vault_id: z.uuid(), target_kind: z.enum(['note', 'canvas', 'pdf']), target_id: z.uuid(), anchor: commentAnchorSchema.nullable(), created_by: z.uuid(), created_at: z.iso.datetime({ offset: true }), resolved_at: z.iso.datetime({ offset: true }).nullable() });
-const messageSchema = z.object({ id: z.uuid(), thread_id: z.uuid(), author_id: z.uuid(), body: z.string(), mentions: z.array(z.uuid()), created_at: z.iso.datetime({ offset: true }), edited_at: z.iso.datetime({ offset: true }).nullable(), deleted_at: z.iso.datetime({ offset: true }).nullable() });
+const threadSchema = z.object({ id: z.uuid(), vault_id: z.uuid(), target_kind: z.enum(['note', 'canvas', 'pdf']), target_id: z.uuid(), anchor: commentAnchorSchema.nullable(), created_by: z.uuid().nullable(), created_at: z.iso.datetime({ offset: true }), resolved_at: z.iso.datetime({ offset: true }).nullable() });
+const messageSchema = z.object({ id: z.uuid(), thread_id: z.uuid(), author_id: z.uuid().nullable(), body: z.string(), mentions: z.array(z.uuid()), created_at: z.iso.datetime({ offset: true }), edited_at: z.iso.datetime({ offset: true }).nullable(), deleted_at: z.iso.datetime({ offset: true }).nullable() });
 type Thread = z.infer<typeof threadSchema>;
 type Message = z.infer<typeof messageSchema>;
 type TargetKind = Thread['target_kind'];
@@ -113,7 +113,7 @@ export function SharedComments({ vaultId, targetKind, targetId, role, draftAncho
   const visible = useMemo(() => threads.filter((thread) => (showResolved || !thread.resolved_at) &&
     (focusAnchorId === undefined || focusAnchorId === null || (thread.anchor?.kind === 'pdf' && thread.anchor.annotationId === focusAnchorId)
       || (thread.anchor?.kind === 'canvas' && thread.anchor.nodeId === focusAnchorId))), [threads, showResolved, focusAnchorId]);
-  const displayName = (id: string) => id === user?.id ? 'You' : members.find((item) => item.user_id === id)?.email ?? 'Member';
+  const displayName = (id: string | null) => id === null ? 'Former member' : id === user?.id ? 'You' : members.find((item) => item.user_id === id)?.email ?? 'Member';
   const navigate = (anchor: CommentAnchor | null) => {
     if (anchor?.kind === 'text' && markdown !== undefined) { const range = resolveTextCommentAnchor(markdown, anchor, collaborativeText); if (range) onNavigateText?.(range.from, range.to); }
     if (anchor?.kind === 'pdf') onNavigatePdf?.(anchor.page, anchor.annotationId);

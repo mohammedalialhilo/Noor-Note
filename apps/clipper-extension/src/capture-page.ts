@@ -62,8 +62,7 @@ function articleMarkdown(doc: Document, base: string): { markdown: string; image
   const parsed = new Readability(cleaned, { charThreshold: 100 }).parse();
   const fallback = cleaned.querySelector('article,main,[role="main"]') ?? cleaned.body;
   const html = parsed?.content || fallback?.innerHTML || '';
-  const container = doc.implementation.createHTMLDocument('clip');
-  container.body.innerHTML = html;
+  const container = new DOMParser().parseFromString(html, 'text/html');
   container.querySelectorAll('script,style,iframe,form,svg').forEach((node) => node.remove());
   container.querySelectorAll<HTMLElement>('[href],[src]').forEach((node) => {
     for (const attr of ['href', 'src'] as const) {

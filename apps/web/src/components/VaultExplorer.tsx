@@ -141,8 +141,12 @@ export function VaultExplorer({ workspace, readOnly = false, focusFolder, onSele
     if (workspace.attachments.some((item) => item.id === id && isTranscribable(item))) { onOpenTranscript(id); return; }
     const blob = await workspace.repository?.getAttachmentBlob(id);
     if (!blob) return;
+    const attachment = workspace.attachments.find((item) => item.id === id);
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = attachment?.name ?? 'attachment';
+    link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 

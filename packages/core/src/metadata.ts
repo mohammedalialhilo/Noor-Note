@@ -5,6 +5,7 @@ import { propertyTypeSchema, propertyValueSchema, type MetadataSchema, type Prop
 const frontmatterPattern = /^(\uFEFF?---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$))/u;
 const hintKey = 'noor_property_types';
 const optionsKey = 'noor_property_options';
+const unsafeKeys = new Set(['__proto__', 'constructor', 'prototype']);
 
 export interface MetadataView { values: Record<string, PropertyValue>; types: Record<string, PropertyType>; options: Record<string, string[]>; hasFrontmatter: boolean }
 
@@ -22,22 +23,24 @@ export function inspectMetadata(markdown: string): MetadataView {
   const raw: unknown = document.toJS({ maxAliasCount: 0 });
   if (raw !== null && (typeof raw !== 'object' || Array.isArray(raw))) throw new Error('Frontmatter must be a YAML mapping');
   const record = raw as Record<string, unknown> | null;
-  const types: Record<string, PropertyType> = {};
-  const options: Record<string, string[]> = {};
+  const types: Record<string, PropertyType> = Object.create(null) as Record<string, PropertyType>;
+  const options: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
   const hints = record?.[hintKey];
   if (hints && typeof hints === 'object' && !Array.isArray(hints)) {
     for (const [key, value] of Object.entries(hints)) {
+      if (unsafeKeys.has(key)) continue;
       const result = propertyTypeSchema.safeParse(value);
       if (result.success) types[key] = result.data;
     }
   }
   const rawOptions = record?.[optionsKey];
   if (rawOptions && typeof rawOptions === 'object' && !Array.isArray(rawOptions)) for (const [key, value] of Object.entries(rawOptions)) {
+    if (unsafeKeys.has(key)) continue;
     if (Array.isArray(value) && value.every((item) => typeof item === 'string')) options[key] = value;
   }
-  const values: Record<string, PropertyValue> = {};
+  const values: Record<string, PropertyValue> = Object.create(null) as Record<string, PropertyValue>;
   for (const [key, value] of Object.entries(record ?? {})) {
-    if (key === hintKey || key === optionsKey || key === 'title' || key === 'aliases') continue;
+    if (key === hintKey || key === optionsKey || key === 'title' || key === 'aliases' || unsafeKeys.has(key)) continue;
     const result = propertyValueSchema.safeParse(value);
     if (result.success) values[key] = result.data;
   }
@@ -47,7 +50,7 @@ export function inspectMetadata(markdown: string): MetadataView {
 /** Updates only a named YAML key. The YAML document retains unrelated fields and comments. */
 export function updateFrontmatterProperty(markdown: string, name: string, value: PropertyValue | undefined, type?: PropertyType, options?: string[]): string {
   const key = name.trim();
-  if (!key || key.length > 100 || ['title', 'aliases', hintKey, optionsKey].includes(key) || /[\r\n]/u.test(key)) throw new Error('Invalid property name');
+  if (!key || key.length > 100 || ['title', 'aliases', hintKey, optionsKey].includes(key) || unsafeKeys.has(key) || /[\r\n]/u.test(key)) throw new Error('Invalid property name');
   if (value !== undefined) propertyValueSchema.parse(value);
   if (type) propertyTypeSchema.parse(type);
   if (options && (options.length > 100 || options.some((item) => !item.trim() || item.length > 100))) throw new Error('Invalid select options');

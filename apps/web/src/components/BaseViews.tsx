@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, FileText, GripVertical, Image as ImageIcon, Pencil,
 import { baseFieldValue, baseValueText, groupBaseNotes, parseBaseLocation, type BaseComputedValues, type BaseFolder, type BaseView } from '@noor-note/core';
 import type { Attachment } from '@noor-note/core';
 import type { NoteEntry, VaultRepository } from '@noor-note/storage';
+import { previewImageTypes, safeAttachmentPreview } from '../lib/safe-attachment-preview';
 import styles from './BasesView.module.css';
 import { BaseChartView } from './BaseChartView';
 
@@ -66,13 +67,16 @@ function TableView({ notes, view, fields, folders, computed, formulaLabels, onOp
 
 function BaseImage({ note, field, computed, attachments, repository }: { note: NoteEntry; field: string | null; computed?: BaseComputedValues; attachments: Attachment[]; repository: VaultRepository | null }) {
   const reference = field ? baseValueText(baseFieldValue(note, field, [], computed)) : '';
-  const attachment = attachments.find((item) => item.mime.startsWith('image/') && (item.id === reference || item.path === reference || item.name === reference));
+  const attachment = attachments.find((item) => previewImageTypes.has(item.mime) && (item.id === reference || item.path === reference || item.name === reference));
   const [image, setImage] = useState<{ id: string; url: string } | null>(null);
   useEffect(() => {
     if (!attachment || !repository) return;
     let alive = true;
     let objectUrl: string | null = null;
-    void repository.getAttachmentBlob(attachment.id).then((blob) => { if (blob && alive) { objectUrl = URL.createObjectURL(blob); setImage({ id: attachment.id, url: objectUrl }); } });
+    void repository.getAttachmentBlob(attachment.id).then(async (blob) => {
+      const preview = blob ? await safeAttachmentPreview(blob, attachment.mime) : null;
+      if (preview && alive) { objectUrl = URL.createObjectURL(preview); setImage({ id: attachment.id, url: objectUrl }); }
+    }).catch(() => undefined);
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment, repository]);
   return image && image.id === attachment?.id ? <Image unoptimized width={480} height={300} className={styles.cardImage} src={image.url} alt="" /> : <div className={styles.cardImageEmpty}><ImageIcon size={21} /></div>;

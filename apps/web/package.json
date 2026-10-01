@@ -9,9 +9,10 @@
     "dev": "node scripts/build-search-worker.mjs && node scripts/build-public-publishing.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next dev",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "build": "node scripts/build-search-worker.mjs && node scripts/build-public-publishing.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next build && node scripts/generate-service-worker.mjs",
+    "build": "node scripts/build-search-worker.mjs && node scripts/build-public-publishing.mjs && node scripts/prepare-ocr-assets.mjs && node scripts/prepare-transcription-assets.mjs && next build && node scripts/generate-service-worker.mjs && node scripts/generate-netlify-headers.mjs && node scripts/verify-netlify-export.mjs && node scripts/verify-netlify-functions.mjs",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:deploy": "node scripts/smoke-netlify-export.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",

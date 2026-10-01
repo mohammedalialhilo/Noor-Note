@@ -16,5 +16,5 @@ export default defineConfig([
     // Netlify renders these pages outside the Next.js image pipeline.
     rules: { "@next/next/no-img-element": "off" },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "public/search-worker.js", "public/graph-worker.js", "public/transcription-worker.js", "public/ai-note-worker.js", "public/semantic-worker.js", "public/publish-mermaid.js", "public/ocr/runtime/**", "public/transcription/runtime/**"]),
+  globalIgnores([".next/**", "out/**", "build/**", "test-results/**", "next-env.d.ts", "public/search-worker.js", "public/graph-worker.js", "public/transcription-worker.js", "public/ai-note-worker.js", "public/semantic-worker.js", "public/publish-mermaid.js", "public/ocr/runtime/**", "public/transcription/runtime/**"]),
 ]);

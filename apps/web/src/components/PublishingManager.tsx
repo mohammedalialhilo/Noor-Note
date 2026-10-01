@@ -5,6 +5,7 @@ import type { useCloudSync } from '../hooks/useCloudSync';
 import { useAccount } from '../auth/AuthProvider';
 import { pageSchema, publicationSlug, publicSnapshotMarkdown, referencedPublicImages, siteSchema, slugSchema, type PublicPage, type PublicSite } from '../lib/publishing';
 import { Button } from '@noor-note/ui';
+import { safeAttachmentPreview } from '../lib/safe-attachment-preview';
 import { useEffect, useState } from 'react';
 import styles from './PublishingManager.module.css';
 
@@ -64,8 +65,10 @@ export function PublishingManager({ workspace, sync }: { workspace: ReturnType<t
   const uploadBrand = async (file: File | null, previous: string | null): Promise<string | null> => {
     if (!file || !account.client || !vaultId) return previous;
     if (!imageMimes.has(file.type) || file.size > 8 * 1024 * 1024) throw new Error('Brand images must be PNG, JPEG, WebP, GIF, or AVIF under 8 MB.');
+    const image = await safeAttachmentPreview(file, file.type);
+    if (!image) throw new Error('Brand image bytes do not match the selected image type.');
     const path = `site/${vaultId}/${crypto.randomUUID()}`;
-    const result = await account.client.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
+    const result = await account.client.storage.from(bucket).upload(path, image, { contentType: image.type, upsert: false });
     if (result.error) throw result.error;
     return path;
   };
@@ -109,9 +112,11 @@ export function PublishingManager({ workspace, sync }: { workspace: ReturnType<t
           if (item.size > 8 * 1024 * 1024) throw new Error(`Image exceeds 8 MB: ${item.path}`);
           const blob = await workspace.repository.getAttachmentBlob(item.id);
           if (!blob) throw new Error(`Image is missing locally: ${item.path}`);
+          const image = await safeAttachmentPreview(blob, item.mime);
+          if (!image) throw new Error(`Image bytes do not match the declared type: ${item.path}`);
           const assetId = crypto.randomUUID();
           const path = `${vaultId}/${note.id}/${assetId}`;
-          const response = await account.client.storage.from(bucket).upload(path, blob, { contentType: item.mime, upsert: false });
+          const response = await account.client.storage.from(bucket).upload(path, image, { contentType: image.type, upsert: false });
           if (response.error) throw response.error;
           uploaded.push(path);
           assets[item.path] = assetId;

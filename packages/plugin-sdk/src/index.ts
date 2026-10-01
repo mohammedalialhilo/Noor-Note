@@ -6,6 +6,18 @@ const label = z.string().trim().min(1).max(120);
 const semver = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u).max(40);
 const entryPath = z.string().regex(/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.js$/u).max(160).refine((value) => !value.split('/').includes('..'));
 
+export function isPublicPluginNetworkOrigin(value: string): boolean {
+  let parsed: URL;
+  try { parsed = new URL(value); } catch { return false; }
+  const host = parsed.hostname.toLowerCase().replace(/\.$/u, '');
+  if (parsed.protocol !== 'https:' || parsed.port || parsed.username || parsed.password
+    || parsed.pathname !== '/' || parsed.search || parsed.hash
+    || !host || host === 'localhost' || host.endsWith('.localhost')
+    || host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.home.arpa')
+    || host.startsWith('[') || /^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host)) return false;
+  return true;
+}
+
 export const pluginPermissionSchema = z.enum([
   'notes.read', 'notes.write', 'attachments.read', 'attachments.write', 'network',
   'editor', 'commands', 'views', 'settings', 'clipboard', 'ai',
@@ -19,10 +31,7 @@ export const pluginManifestSchema = z.object({
   minimumNoorVersion: semver,
   permissions: z.array(pluginPermissionSchema).max(15).refine((items) => new Set(items).size === items.length, 'Duplicate permissions'),
   entryPoints: z.object({ sandbox: entryPath }).strict(),
-  networkOrigins: z.array(z.url().refine((url) => {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && parsed.pathname === '/' && !parsed.search && !parsed.hash && !parsed.username && !parsed.password;
-  })).max(10).default([]),
+  networkOrigins: z.array(z.url().refine(isPublicPluginNetworkOrigin, 'Use a public HTTPS origin on the default port')).max(10).default([]),
 }).strict().refine((manifest) => manifest.permissions.includes('network') || manifest.networkOrigins.length === 0, 'Network origins require network permission');
 export type PluginManifest = z.infer<typeof pluginManifestSchema>;
 

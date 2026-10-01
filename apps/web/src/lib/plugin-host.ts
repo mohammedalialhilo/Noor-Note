@@ -1,4 +1,4 @@
-import { parsePluginMessage, pluginBundleSchema, supportsNoorVersion, validateContribution, validateGrant, type PluginBundle, type PluginContribution, type PluginPermission } from '@noor-note/plugin-sdk';
+import { isPublicPluginNetworkOrigin, parsePluginMessage, pluginBundleSchema, supportsNoorVersion, validateContribution, validateGrant, type PluginBundle, type PluginContribution, type PluginPermission } from '@noor-note/plugin-sdk';
 import type { VaultNote } from '@noor-note/core';
 import type { VaultRepository } from '@noor-note/storage';
 import { z } from 'zod';
@@ -309,7 +309,8 @@ export class PluginHost {
         need('network');
         const { url } = z.object({ url: z.url() }).strict().parse(input);
         const parsed = new URL(url);
-        if (parsed.protocol !== 'https:' || !installation.bundle.manifest.networkOrigins.includes(parsed.origin + '/')) throw new Error('Network origin is not allowed');
+        if (!isPublicPluginNetworkOrigin(parsed.origin + '/') || parsed.username || parsed.password
+          || !installation.bundle.manifest.networkOrigins.includes(parsed.origin + '/')) throw new Error('Network origin is not allowed');
         const response = await fetch(parsed.href, { method: 'GET', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(10_000) });
         if (!response.ok) throw new Error(`Network request failed: ${response.status}`);
         if (Number(response.headers.get('content-length') ?? 0) > 100_000) throw new Error('Network response is too large');

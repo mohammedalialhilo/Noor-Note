@@ -7,16 +7,22 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { pageSchema, publicHref, publicMarkdownTarget, publicWikiTarget, outgoingPublicLinks, siteSchema, slugSchema, type PublicPage, type PublicSite } from '../../src/lib/publishing';
+import { safeAttachmentPreview } from '../../src/lib/safe-attachment-preview';
 import type { ReactNode } from 'react';
 
 const bucket = 'noor-note-published';
 const safeImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const functionHeaders = {
+  'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Frame-Options': 'DENY', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Strict-Transport-Security': 'max-age=31536000',
+};
 
 function response(body: string, status = 200, type = 'text/html; charset=utf-8'): Response {
   return new Response(body, { status, headers: {
+    ...functionHeaders,
     'Content-Type': type, 'Cache-Control': 'no-store, max-age=0',
-    'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Content-Security-Policy': "default-src 'none'; img-src 'self' https: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   } });
 }
@@ -132,7 +138,9 @@ export default async function handler(request: Request): Promise<Response> {
       const result = await client.storage.from(bucket).download(path);
       if (result.error || !result.data) return notFound();
       if (!safeImageTypes.has(result.data.type)) return notFound();
-      return new Response(result.data, { headers: { 'Content-Type': result.data.type || 'image/png', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+      const image = await safeAttachmentPreview(result.data, result.data.type);
+      if (!image) return notFound();
+      return new Response(image, { headers: { ...functionHeaders, 'Content-Type': image.type, 'Cache-Control': 'no-store' } });
     }
     if (segments.length >= 3 && segments[2] !== 'graph' && !slugSchema.safeParse(segments[2]).success) return notFound();
     const pages: PublicPage[] = [];
@@ -149,7 +157,9 @@ export default async function handler(request: Request): Promise<Response> {
       const result = await client.storage.from(bucket).download(`${site.vault_id}/${page.note_id}/${segments[4]}`);
       if (result.error || !result.data) return notFound();
       if (!safeImageTypes.has(result.data.type)) return notFound();
-      return new Response(result.data, { headers: { 'Content-Type': result.data.type || 'image/png', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+      const image = await safeAttachmentPreview(result.data, result.data.type);
+      if (!image) return notFound();
+      return new Response(image, { headers: { ...functionHeaders, 'Content-Type': image.type, 'Cache-Control': 'no-store' } });
     }
     if (segments.length > 3) return notFound();
     const showGraph = segments[2] === 'graph';

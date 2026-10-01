@@ -9,7 +9,7 @@ describe('web clip extraction', () => {
   it('extracts article content and metadata while removing navigation and unsafe links', () => {
     const page = document.implementation.createHTMLDocument('Fallback title');
     page.head.innerHTML = `<meta property="og:title" content="Useful research"><meta property="og:site_name" content="Example"><meta name="description" content="The summary"><meta property="og:image" content="/lead.jpg"><script type="application/ld+json">{"@type":"Article","author":{"name":"Ada"},"datePublished":"2026-09-30"}</script>`;
-    page.body.innerHTML = `<nav>Navigation noise</nav><article><h1>Useful research</h1><p>${'This is the meaningful article text. '.repeat(8)}</p><a href="javascript:alert(1)">Unsafe</a><a href="/more">More research</a></article><footer>Footer noise</footer>`;
+    page.body.innerHTML = `<nav>Navigation noise</nav><article><h1>Useful research</h1><p>${'This is the meaningful article text. '.repeat(8)}</p><a href="javascript:alert(1)">Unsafe</a><a href="/more">More research</a><img src="/chart.png" onerror="window.stolen=true"></article><footer>Footer noise</footer>`;
     const clip = extractPage(page, 'https://example.test/story', { mode: 'article' });
     expect(clip.title).toBe('Useful research');
     expect(clip.author).toBe('Ada');
@@ -20,6 +20,7 @@ describe('web clip extraction', () => {
     expect(clip.markdown).not.toContain('Navigation noise');
     expect(clip.markdown).not.toContain('Footer noise');
     expect(clip.markdown).not.toContain('javascript:');
+    expect(clip.markdown).not.toContain('onerror');
   });
   it('captures a selection and validates the configured app origin', () => {
     document.title = 'Selected page';

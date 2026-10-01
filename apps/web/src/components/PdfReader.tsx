@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Copy, FilePlus2, Highlighter, MessageSquare, ScanText, Search, X } from 'lucide-react';
 import { collectPdfBacklinks, isPdfAttachment, pdfReferenceLink, type PdfAnnotation, type VaultNote } from '@noor-note/core';
+import { safeAttachmentPreview } from '../lib/safe-attachment-preview';
 import type { PDFDocumentProxy, PDFDocumentLoadingTask } from 'pdfjs-dist';
 import type { useVaultWorkspace } from '../hooks/useVaultWorkspace';
 import { PdfAnnotationsStore } from '../lib/pdf-annotations';
@@ -97,7 +98,9 @@ export function PdfReader({ workspace, attachmentId, initialPage, initialAnnotat
     void repository.getAttachmentBlob(attachment.id).then(async (blob) => {
       if (!blob) throw new Error('The PDF file is missing from local storage.');
       if (!live) return;
-      url = URL.createObjectURL(blob);
+      const preview = await safeAttachmentPreview(blob, 'application/pdf');
+      if (!preview) throw new Error('The file bytes do not match a PDF.');
+      url = URL.createObjectURL(preview);
       const pdfjs = await import('pdfjs-dist');
       if (!live) return;
       pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();

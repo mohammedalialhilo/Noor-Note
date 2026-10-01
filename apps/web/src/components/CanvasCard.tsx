@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { FileAudio, FileImage, FileText, FileVideo, Link2, Paperclip, PanelsTopLeft } from 'lucide-react';
 import type { Attachment, CanvasNode } from '@noor-note/core';
 import type { NoteEntry, VaultRepository } from '@noor-note/storage';
+import { previewImageTypes, safeAttachmentPreview } from '../lib/safe-attachment-preview';
 import styles from './CanvasView.module.css';
 
 interface Props { node: CanvasNode; notes: NoteEntry[]; attachments: Attachment[]; repository: VaultRepository | null; onOpenNote: (id: string) => void }
@@ -17,18 +18,35 @@ function AttachmentPreview({ node, attachment, repository }: { node: CanvasNode;
   useEffect(() => {
     if (!attachment || !repository) return;
     let alive = true, objectUrl: string | null = null;
-    void repository.getAttachmentBlob(attachment.id).then((blob) => { if (alive && blob) { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); } else if (alive) setError(true); }).catch(() => { if (alive) setError(true); });
+    const previewKind = node.kind === 'attachment'
+      ? previewImageTypes.has(attachment.mime) ? 'image' : attachment.mime === 'application/pdf' ? 'pdf' : 'attachment'
+      : node.kind;
+    void repository.getAttachmentBlob(attachment.id).then(async (blob) => {
+      if (!blob) { if (alive) setError(true); return; }
+      const display = previewKind === 'image' || previewKind === 'pdf'
+        ? await safeAttachmentPreview(blob, previewKind === 'pdf' ? 'application/pdf' : attachment.mime)
+        : blob;
+      if (!alive) return;
+      if (!display) { setError(true); return; }
+      objectUrl = URL.createObjectURL(display);
+      setUrl(objectUrl);
+    }).catch(() => { if (alive) setError(true); });
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [attachment, repository]);
+  }, [attachment, node.kind, repository]);
   if (!attachment) return <div className={styles.cardMissing}>Attachment unavailable: {node.filePath ?? 'unknown file'}</div>;
   if (error) return <div className={styles.cardMissing}>Could not load {attachment.name}.</div>;
-  const kind = node.kind === 'attachment' ? attachment.mime.startsWith('image/') ? 'image' : attachment.mime === 'application/pdf' ? 'pdf' : attachment.mime.startsWith('audio/') ? 'audio' : attachment.mime.startsWith('video/') ? 'video' : 'attachment' : node.kind;
+  const kind = node.kind === 'attachment' ? previewImageTypes.has(attachment.mime) ? 'image' : attachment.mime === 'application/pdf' ? 'pdf' : attachment.mime.startsWith('audio/') ? 'audio' : attachment.mime.startsWith('video/') ? 'video' : 'attachment' : node.kind;
   if (!url) return <div className={styles.cardMissing}>Loading {attachment.name}…</div>;
   if (kind === 'image') return <Image className={styles.mediaImage} unoptimized src={url} width={640} height={480} alt={attachment.name} />;
-  if (kind === 'pdf') return <iframe className={styles.mediaFrame} title={attachment.name} src={url} />;
+  if (kind === 'pdf') return <iframe className={styles.mediaFrame} title={attachment.name} src={url} sandbox="" referrerPolicy="no-referrer" />;
   if (kind === 'audio') return <audio className={styles.mediaPlayer} src={url} controls preload="none" aria-label={attachment.name} />;
   if (kind === 'video') return <video className={styles.mediaPlayer} src={url} controls preload="none" aria-label={attachment.name} />;
-  return <a className={styles.attachmentDownload} href={url} download={attachment.name}><Paperclip size={16} /> Download {attachment.name}</a>;
+  return <button type="button" className={styles.attachmentDownload} onClick={() => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = attachment.name;
+    link.click();
+  }}><Paperclip size={16} /> Download {attachment.name}</button>;
 }
 
 export function CanvasCardContent({ node, notes, attachments, repository, onOpenNote }: Props) {

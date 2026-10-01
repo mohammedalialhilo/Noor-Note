@@ -11,6 +11,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import styles from './MarkdownReadingView.module.css';
 import { MermaidDiagram } from './MermaidDiagram';
+import { previewImageTypes, safeAttachmentPreview } from '../lib/safe-attachment-preview';
 
 function headingText(children: ReactNode): string {
   if (typeof children === 'string' || typeof children === 'number') return String(children);
@@ -59,10 +60,12 @@ export function MarkdownReadingView({ note, notes, attachments, repository, onOp
       const resolved = resolveVaultReference(note.path, match[1] ?? '');
       return resolved ? pathKey(resolved) : '';
     }));
-    void Promise.all(attachments.filter((item) => item.mime.startsWith('image/') && referenced.has(pathKey(item.path))).map(async (item) => {
+    void Promise.all(attachments.filter((item) => previewImageTypes.has(item.mime) && referenced.has(pathKey(item.path))).map(async (item) => {
       const blob = await repository.getAttachmentBlob(item.id);
       if (!blob) return null;
-      const url = URL.createObjectURL(blob);
+      const preview = await safeAttachmentPreview(blob, item.mime);
+      if (!preview) return null;
+      const url = URL.createObjectURL(preview);
       urls.push(url);
       return [pathKey(item.path), url] as const;
     })).then((pairs) => { if (live) setAttachmentUrls(new Map(pairs.filter((pair): pair is readonly [string, string] => pair !== null))); }).catch(() => undefined);
@@ -128,7 +131,9 @@ export function MarkdownReadingView({ note, notes, attachments, repository, onOp
         if (destination.startsWith('#noor-wiki-')) {
           const encoded = destination.slice('#noor-wiki-'.length);
           const [raw, stableId] = encoded.split('&noor-id=', 2);
-          const reference = parseWikiReference(decodeURIComponent(raw ?? ''));
+          let decoded: string;
+          try { decoded = decodeURIComponent(raw ?? ''); } catch { return <span className={styles.unresolved}>Invalid note link</span>; }
+          const reference = parseWikiReference(decoded);
           const entry = reference ? resolveLinkTarget({ target: reference.target, targetId: stableId ?? null }, note, notes) : null;
           return entry ? <button type="button" className={styles.wiki} onClick={() => onOpenNote(entry.id, reference?.heading ?? reference?.blockId ?? undefined)}>{children}</button> : onCreateMissing && reference ? <button type="button" className={styles.unresolvedButton} title={`Create ${reference.target}`} onClick={() => onCreateMissing(reference.target)}>{children} <span>(create note)</span></button> : <span className={styles.unresolved} title="Note not found">{children}</span>;
         }

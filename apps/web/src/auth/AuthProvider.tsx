@@ -6,6 +6,10 @@ import { z } from 'zod';
 import { authConfiguration, type AuthConfiguration } from '../lib/auth-config';
 import { getAuthClient } from '../lib/auth-client';
 
+// Zod's JIT probe uses Function(), which a production CSP correctly blocks.
+// Keep validation on its interpreter path before any client-side parsing starts.
+z.config({ jitless: true });
+
 export interface AccountState {
   configuration: AuthConfiguration;
   client: SupabaseClient | null;

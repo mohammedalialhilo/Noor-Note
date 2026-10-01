@@ -8,7 +8,7 @@ export const activityKindSchema = z.enum([
 ]);
 export type ActivityKind = z.infer<typeof activityKindSchema>;
 export const activityEventSchema = z.object({
-  id: z.uuid(), vault_id: z.uuid(), actor_id: z.uuid(), actor_email: z.email(),
+  id: z.uuid(), vault_id: z.uuid(), actor_id: z.uuid().nullable(), actor_email: z.email(),
   event_kind: activityKindSchema, note_id: z.uuid().nullable(), target_user_id: z.uuid().nullable(),
   details: z.record(z.string(), z.unknown()), occurred_at: z.iso.datetime({ offset: true }),
 }).strict();

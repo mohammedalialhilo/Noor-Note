@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Configure Zod before constructing app schemas so CSP never sees its JIT probe.
+z.config({ jitless: true });
+
 export const APPEARANCE_STORAGE_KEY = 'noor-note-appearance';
 export const APPEARANCE_CHANGE_EVENT = 'noor-note-appearance-change';
 
