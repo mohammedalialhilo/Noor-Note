@@ -14,16 +14,10 @@ import type { Awareness } from 'y-protocols/awareness';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ensureBlockId, fuzzyNotes } from '@noor-note/core';
 import type { NoteEntry } from '@noor-note/storage';
+import { defaultEditorPreferences, type EditorPreferences } from '../lib/editor-preferences';
 import styles from './MarkdownEditor.module.css';
 
-export interface EditorPreferences {
-  lineNumbers: boolean; spellcheck: boolean; wordWrap: boolean; focusMode: boolean; typewriterMode: boolean;
-  fontFamily: 'sans' | 'serif' | 'mono'; fontSize: number; lineHeight: number;
-}
-export const defaultEditorPreferences: EditorPreferences = {
-  lineNumbers: false, spellcheck: true, wordWrap: true, focusMode: false, typewriterMode: false,
-  fontFamily: 'sans', fontSize: 14, lineHeight: 1.85,
-};
+export { defaultEditorPreferences, type EditorPreferences } from '../lib/editor-preferences';
 export type SlashCommand = 'heading' | 'checklist' | 'bullets' | 'numbers' | 'quote' | 'callout' | 'code' | 'table' | 'image' | 'attachment' | 'divider' | 'math' | 'mermaid';
 const slashCommands: { id: SlashCommand; label: string; insert: string }[] = [
   { id: 'heading', label: 'Heading', insert: '## Heading' }, { id: 'checklist', label: 'Checklist', insert: '- [ ] Task' },

@@ -2,6 +2,7 @@ import { canvasSchema, importJsonCanvas, joinVaultPath, parseCsvTable, parseImpo
 import type { NoteEntry, VaultRepository, VaultTree } from '@noor-note/storage';
 import { z } from 'zod';
 import { importVaultZip } from './vault-archive';
+import { readBoundedZipBlob, readBoundedZipText } from './zip-safety';
 import { analyzeMarkdownVault, validateJsonCanvas, type VaultImportCanvas, type VaultImportReport } from './obsidian-vault';
 
 export interface ImportNote { path: string; title: string; markdown: string }
@@ -165,7 +166,7 @@ export async function inspectImportFiles(files: File[]): Promise<ImportBatch> {
   if (zipFiles.length) {
     if (files.length !== 1) throw new Error('Import one ZIP at a time');
     const file = zipFiles[0]!;
-    const { BlobReader, TextWriter, ZipReader } = await import('@zip.js/zip.js');
+    const { BlobReader, ZipReader } = await import('@zip.js/zip.js');
     const reader = new ZipReader(new BlobReader(file));
     try {
       const allEntries = await reader.getEntries();
@@ -174,15 +175,15 @@ export async function inspectImportFiles(files: File[]): Promise<ImportBatch> {
       if (allEntries.length > (native ? 10_000 : MAX_FILES)) throw new Error('ZIP contains too many entries');
       if (entries.length > (native ? 10_000 : MAX_FILES)) throw new Error('ZIP contains too many files');
       let total = 0;
-      for (const entry of entries) { relativePath(entry.filename); total += entry.uncompressedSize; if (total > (native ? 4 * 1024 * 1024 * 1024 : MAX_ZIP_BYTES)) throw new Error('ZIP contents exceed the import size limit'); }
+      for (const entry of entries) { relativePath(entry.filename); if (!Number.isSafeInteger(entry.uncompressedSize) || entry.uncompressedSize < 0) throw new Error('ZIP entry size is invalid'); total += entry.uncompressedSize; if (total > (native ? 4 * 1024 * 1024 * 1024 : MAX_ZIP_BYTES)) throw new Error('ZIP contents exceed the import size limit'); }
       const manifest = entries.find((entry) => entry.filename === 'noor-note.json');
       if (manifest?.getData) {
         if (manifest.uncompressedSize > MAX_TEXT_BYTES) throw new Error('Noor Note manifest is too large');
-        const data: unknown = JSON.parse(await manifest.getData(new TextWriter()));
+        const data: unknown = JSON.parse(await readBoundedZipText(manifest, MAX_TEXT_BYTES));
         const parsed = vaultArchiveManifestSchema.parse(data);
         return { format: 'Noor Note backup', folders: parsed.folders.map((item) => item.path.slice(1)), notes: parsed.notes.map((note) => ({ path: note.path.slice(1), title: note.title, markdown: '' })), attachments: parsed.attachments.map((item) => ({ path: item.path.slice(1), blob: new Blob() })), canvases: parsed.canvases?.map((item) => ({ path: item.path.slice(1), document: item.document })) ?? [], unsupported: [], nativeArchive: file };
       }
-      const batch = await parseEntries(entries.map((entry) => ({ path: entry.filename, size: entry.uncompressedSize, text: entry.getData ? () => entry.getData!(new TextWriter()) : undefined, archivePath: entry.filename })), 'Markdown/CSV ZIP', allEntries.filter((entry) => entry.directory).map((entry) => entry.filename));
+      const batch = await parseEntries(entries.map((entry) => ({ path: entry.filename, size: entry.uncompressedSize, text: () => readBoundedZipText(entry, MAX_TEXT_BYTES), archivePath: entry.filename })), 'Markdown/CSV ZIP', allEntries.filter((entry) => entry.directory).map((entry) => entry.filename));
       return { ...batch, archive: file };
     } finally { await reader.close(); }
   }
@@ -335,7 +336,7 @@ export async function commitImport(batch: ImportBatch, repository: VaultReposito
       const source = attachmentSources.get(item.sourcePath)!;
       const archiveEntry = source.archivePath ? archiveEntries?.get(source.archivePath) : null;
       let blob = source.blob;
-      if (!blob && archiveEntry && 'getData' in archiveEntry && zip) blob = await archiveEntry.getData(new zip.BlobWriter());
+      if (!blob && archiveEntry && 'getData' in archiveEntry && zip) blob = await readBoundedZipBlob(archiveEntry, MAX_ASSET_BYTES);
       if (!blob || blob.size > MAX_ASSET_BYTES) throw new Error(`Attachment is unavailable or too large: ${source.path}`);
       await repository.addAttachment(vaultId, folderId, blob, parts.at(-1)!);
     } else {

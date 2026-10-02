@@ -49,7 +49,7 @@ export function QuickSwitcher({ open, onOpenChange, notes, folders, recentIds, o
         {entry.kind === 'note' && <div className={styles.actions}><button type="button" title="Open in new tab" aria-label={`Open ${entry.title} in new tab`} onClick={() => { void openEntry(entry, 'tab'); }}><FilePlus2 size={16} /></button><button type="button" title="Open in split" aria-label={`Open ${entry.title} in split`} onClick={() => { void openEntry(entry, 'split'); }}><Columns2 size={16} /></button></div>}
       </div>)}
       {create && <button type="button" className={`${styles.create} ${active === entries.length ? styles.active : ''}`} onMouseEnter={() => setActive(entries.length)} onClick={() => { void openEntry(null); }}><FilePlus2 size={17} /> Create “{query.trim().replace(/\.md$/iu, '')}”</button>}
-      {!count && <p className={styles.empty}>No notes or folders match.</p>}
+      {!count && <p className={styles.empty}>{query.trim() ? 'No notes or folders match. Try a shorter name or another spelling.' : 'Open a note to see it here, or search for a note or folder.'}</p>}
     </div>
     <p className={styles.hint}>↑↓ Navigate · Enter Open · Ctrl/⌘ Enter New tab · Alt Enter Split</p>
   </Dialog>;

@@ -30,7 +30,7 @@ The root `.env.example` lists the supported public values. For local Next.js dev
 
 No protected Supabase key is required by the current Functions. Never set a service-role or Supabase secret key in a `NEXT_PUBLIC_` variable. Keep any future server credential in a Functions-only variable with an appropriate Netlify scope, and do not import it from a client component. No hosted AI provider variable or server AI feature flag is implemented. AI note actions, vault chat, and semantic search currently use explicit local configuration; setting an API key would not enable a hosted provider. The current feature switches are user settings, not deployment environment flags. `NETLIFY_NEXT_PLUGIN_SKIP` and `NODE_VERSION` are fixed build settings in `netlify.toml`.
 
-For optional sync, sharing, publishing, and private links, apply the required Supabase migrations in order and verify RLS against a real project before enabling those workflows. The static app and `/health` work without Supabase; `/p/*` and `/s/*` return 503 when public Supabase configuration is absent.
+For optional sync, sharing, publishing, private links, and encrypted cloud backups, apply the required Supabase migrations in order, including `202610020001_noor_backups.sql` for the private backup bucket, and verify RLS against a real project before enabling those workflows. Manual backup works without Supabase. The static app and `/health` work without Supabase; `/p/*` and `/s/*` return 503 when public Supabase configuration is absent.
 
 ## Security and caching
 

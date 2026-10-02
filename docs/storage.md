@@ -1,5 +1,9 @@
 # Local storage
 
+The [Recovery Center](file-recovery.md) uses indexed revision checkpoints, Trash metadata, and browser-local autosave drafts. It does not load every note body to render recovery lists.
+
+The [Backup Center](backup-recovery.md) creates verified manual vault ZIPs and optional passphrase-encrypted cloud snapshots. Restores create a new vault. Browser storage alone is not a backup.
+
 Public sites and pages are separate Postgres projection tables. Publication images use the private `noor-note-published` Supabase Storage bucket with RLS tied to the current snapshot. Original local Markdown and attachments remain canonical; publishing does not modify them. See [publishing.md](publishing.md).
 
 Private share snapshots and hashed session verifiers live in separate Postgres tables with no anonymous read grant. They are not stored in the public publishing tables or bucket. Original Markdown remains in the local vault. See [private-share-links.md](private-share-links.md).

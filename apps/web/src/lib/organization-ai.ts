@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { organizationPrompt } from '@noor-note/ai';
 import { normalizeTagName, type VaultNote } from '@noor-note/core';
 import type { OrganizationSuggestion } from './organization';
 
@@ -8,7 +9,7 @@ const responseSchema = z.object({ suggestions: z.array(z.object({
   explanation: z.string().trim().min(1).max(240),
 }).strict()).max(8) }).strict();
 
-export const organizationPrompt = 'Examine only the supplied note. Return JSON only: {"suggestions":[{"kind":"tag|property|task|contradiction","quote":"exact substring copied from note","value":"tag name, property name=value, task text, or conflict description","explanation":"brief reason"}]}. Suggest at most 8 items. Every quote must be verbatim. Do not invent facts, infer contradictions without an explicit opposing statement, or propose deleting, moving, merging, or rewriting notes. Empty suggestions is valid.';
+export { organizationPrompt };
 
 export function parseOrganizationAi(raw: string, note: VaultNote): OrganizationSuggestion[] {
   const json = raw.match(/\{[\s\S]*\}/u)?.[0];

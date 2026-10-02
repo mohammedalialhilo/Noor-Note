@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { safeAttachmentPreview } from '../src/lib/safe-attachment-preview';
+import { previewImageMime, safeAttachmentPreview } from '../src/lib/safe-attachment-preview';
 
 describe('untrusted attachment previews', () => {
   it('refuses HTML and SVG bytes even when the attachment claims to be a PDF or image', async () => {
@@ -17,5 +17,10 @@ describe('untrusted attachment previews', () => {
     expect((await safeAttachmentPreview(png, 'image/png'))?.type).toBe('image/png');
     expect((await safeAttachmentPreview(pdf, 'application/pdf'))?.type).toBe('application/pdf');
     expect(await safeAttachmentPreview(pdf, 'image/png')).toBeNull();
+  });
+
+  it('does not resolve prototype-shaped extensions as MIME values', () => {
+    expect(previewImageMime('application/octet-stream', 'image.__proto__')).toBe('');
+    expect(previewImageMime('application/octet-stream', 'image.constructor')).toBe('');
   });
 });

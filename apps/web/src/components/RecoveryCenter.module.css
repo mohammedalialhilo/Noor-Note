@@ -1,0 +1,17 @@
+.page { height: 100%; overflow: auto; background: var(--nn-surface); color: var(--nn-text); }
+.topbar { height: 74px; border-bottom: 1px solid var(--nn-border); padding: 0 28px; display: flex; align-items: center; font-size: 12px; font-weight: 700; }
+.mobileMenu { display: none; border: 0; background: transparent; color: var(--nn-text); margin-right: 10px; }
+.content { max-width: 1050px; margin: 0 auto; padding: 48px 28px 90px; }
+.heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 2rem; }
+.heading span { color: var(--nn-accent); font-size: .68rem; font-weight: 800; letter-spacing: .12em; }.heading h1 { font-family: Georgia, serif; font-size: clamp(2rem, 5vw, 2.75rem); margin: .45rem 0; }.heading p, .sectionHead p { color: var(--nn-text-muted); font-size: .86rem; line-height: 1.5; margin: 0; }
+.heading button, .actions button, .previewActions button, .folderHint button { min-height: 2.5rem; border: 1px solid var(--nn-border); border-radius: .45rem; padding: .4rem .7rem; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; }.heading button:disabled, .actions button:disabled, .previewActions button:disabled { opacity: .5; cursor: default; }
+.section { margin: 1.7rem 0; }.sectionHead { margin-bottom: .65rem; }.sectionHead h2 { margin: 0 0 .2rem; font-size: 1.1rem; }.sectionHead h2 span { color: var(--nn-text-muted); font-weight: 400; }
+.list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--nn-border); border-radius: .65rem; overflow: hidden; }.list li { display: flex; align-items: center; gap: .75rem; padding: .8rem; border-bottom: 1px solid var(--nn-border); }.list li:last-child { border-bottom: 0; }.list li > svg { color: var(--nn-accent); flex: none; }
+.meta { display: grid; gap: .15rem; min-width: 0; flex: 1; }.meta strong { font-size: .87rem; }.meta span { font-size: .73rem; color: var(--nn-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }.actions button { font-size: .76rem; min-height: 2.25rem; }.actions .danger { color: var(--nn-danger); }
+.empty { border: 1px dashed var(--nn-border-strong); border-radius: .65rem; color: var(--nn-text-muted); padding: 1rem; font-size: .86rem; }
+.folderHint, .footnote { font-size: .8rem; color: var(--nn-text-muted); }.folderHint button { min-height: 1.8rem; padding: .1rem .4rem; }.footnote { display: flex; align-items: flex-start; gap: .5rem; line-height: 1.5; }
+.error { padding: .75rem; background: var(--nn-danger-soft); color: var(--nn-danger); border-radius: .5rem; }.message { padding: .75rem; border: 1px solid var(--nn-border); border-radius: .5rem; }
+.dialog { width: min(50rem, calc(100vw - 1.5rem)); }.preview pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 55dvh; overflow: auto; padding: 1rem; background: var(--nn-surface-soft); border: 1px solid var(--nn-border); border-radius: .5rem; }.preview img { display: block; max-width: 100%; max-height: 55dvh; margin: 1rem auto; }.previewActions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+@media (max-width: 900px) { .mobileMenu { display: inline-flex; }.list li { align-items: flex-start; flex-wrap: wrap; }.actions { width: 100%; justify-content: flex-start; padding-left: 1.85rem; } }
+@media (max-width: 640px) { .content { padding: 30px 18px 85px; }.heading { align-items: flex-start; flex-direction: column; }.actions button { min-height: 2.75rem; } }

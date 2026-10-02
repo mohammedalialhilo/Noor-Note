@@ -17,6 +17,7 @@ interface Props {
   workspace: ReturnType<typeof useVaultWorkspace>;
   onOpenNote: (id: string, line: number, blockId?: string | null) => void;
   onOpenNavigation: MouseEventHandler<HTMLButtonElement>;
+  onOpenNotes: () => void;
 }
 
 function TaskEditor({ item, onSave, onCancel }: { item: TaskListItem; onSave: (patch: TaskPatch) => Promise<boolean>; onCancel: () => void }) {
@@ -94,7 +95,7 @@ function TaskRow({ item, workspace, onOpenNote }: { item: TaskListItem; workspac
   </article>;
 }
 
-export function TaskDashboard({ workspace, onOpenNote, onOpenNavigation }: Props) {
+export function TaskDashboard({ workspace, onOpenNote, onOpenNavigation, onOpenNotes }: Props) {
   const [view, setView] = useState<TaskDashboardView | 'custom'>('inbox');
   const [query, setQuery] = useState('');
   const [viewName, setViewName] = useState('');
@@ -120,7 +121,7 @@ export function TaskDashboard({ workspace, onOpenNote, onOpenNavigation }: Props
   let predicate: ReturnType<typeof compileTaskQuery> | null = null;
   if (view === 'custom' && query.trim()) try { predicate = compileTaskQuery(query); } catch (caught) { queryError = caught instanceof Error ? caught.message : 'Invalid task query'; }
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const visible = items.filter((item) => view === 'custom' ? predicate?.(item, todayKey) ?? false : taskMatchesView(view, item, today)).sort((a, b) => priorityOrder[a.task.priority] - priorityOrder[b.task.priority] || (a.task.dueDate ?? '9999').localeCompare(b.task.dueDate ?? '9999') || a.notePath.localeCompare(b.notePath) || a.task.line - b.task.line);
+  const visible = items.filter((item) => view === 'custom' ? !query.trim() || (predicate?.(item, todayKey) ?? false) : taskMatchesView(view, item, today)).sort((a, b) => priorityOrder[a.task.priority] - priorityOrder[b.task.priority] || (a.task.dueDate ?? '9999').localeCompare(b.task.dueDate ?? '9999') || a.notePath.localeCompare(b.notePath) || a.task.line - b.task.line);
   const saveView = async (event: FormEvent) => {
     event.preventDefault();
     if (!vault) return;
@@ -150,7 +151,7 @@ export function TaskDashboard({ workspace, onOpenNote, onOpenNavigation }: Props
       </section>}
       {message && <p role="status" className={styles.message}>{message}</p>}
       <div className={styles.listHeading}><h2>{view === 'custom' ? activeSavedId ? vault?.settings.taskViews.find((item) => item.id === activeSavedId)?.name ?? 'Custom tasks' : 'Custom tasks' : views.find((item) => item.id === view)?.label}</h2><span>{visible.length} {visible.length === 1 ? 'task' : 'tasks'}</span></div>
-      {visible.length ? <div className={styles.taskList}>{visible.map((item) => <TaskRow key={`${item.noteId}:${item.task.id ?? item.task.line}`} item={item} workspace={workspace} onOpenNote={onOpenNote} />)}</div> : <div className={styles.empty}><CalendarDays size={24} /><strong>No tasks in this view</strong><p>Add a Markdown checkbox in any note or choose another task view.</p></div>}
+      {visible.length ? <div className={styles.taskList}>{visible.map((item) => <TaskRow key={`${item.noteId}:${item.task.id ?? item.task.line}`} item={item} workspace={workspace} onOpenNote={onOpenNote} />)}</div> : <div className={styles.empty}><CalendarDays size={24} /><strong>{items.length ? 'No tasks match this view' : 'No tasks yet'}</strong><p>{items.length ? 'Try another view or adjust your task filters.' : 'Add a Markdown checkbox (- [ ]) in a note to see it here.'}</p>{items.length ? <button type="button" onClick={() => { setView('custom'); setQuery(''); setActiveSavedId(null); }}>Show all tasks</button> : <button type="button" onClick={onOpenNotes}>Open notes</button>}</div>}
     </div>
   </main>;
 }

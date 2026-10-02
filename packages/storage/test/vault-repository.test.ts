@@ -68,6 +68,22 @@ describe('DexieVaultRepository', () => {
     ]);
   });
 
+  it('lists bounded recent revisions by vault and protects the current checkpoint', async () => {
+    const vault = await repository.initialize();
+    const note = await repository.createNote(vault.id, null, 'History', 'First');
+    const updated = await repository.saveNote(note.id, { markdown: 'Second' }, true);
+    const otherVault = await repository.createVault('Other');
+    await repository.createNote(otherVault.id, null, 'Other', 'Hidden');
+    const recent = await repository.listRecentRevisions(vault.id, 10);
+    expect(recent.map((item) => item.noteId)).toEqual([note.id, note.id]);
+    expect(recent[0]?.markdown).toBe('Second');
+    await expect(repository.permanentlyDeleteRevision(crypto.randomUUID(), recent[1]!.id)).rejects.toThrow('does not belong');
+    await expect(repository.permanentlyDeleteRevision(note.id, recent[0]!.id)).rejects.toThrow('current revision');
+    await repository.permanentlyDeleteRevision(note.id, recent[1]!.id);
+    expect((await repository.listRevisions(note.id)).map((item) => item.number)).toEqual([updated.revision]);
+    await expect(repository.listRecentRevisions(vault.id, 101)).rejects.toThrow('limit');
+  });
+
   it('renders note content against the final collision-free path atomically', async () => {
     const vault = await repository.initialize();
     await repository.createNote(vault.id, null, 'Plan', 'First');

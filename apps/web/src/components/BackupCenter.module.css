@@ -1,0 +1,16 @@
+.dialog:global(.nn-dialog) { width: min(46rem, calc(100vw - 1.5rem)); max-height: 92dvh; overflow-y: auto; }
+.dialog p { line-height: 1.5; color: var(--nn-text-muted); }
+.section { border: 1px solid var(--nn-border); border-radius: .65rem; padding: 1rem; margin: 1rem 0; background: var(--nn-surface-soft); }
+.section h3 { margin: 0; }.section h4 { margin-bottom: .45rem; }
+.section label { display: grid; gap: .35rem; margin: .6rem 0; }
+.section input { min-height: 2.5rem; max-width: 100%; border: 1px solid var(--nn-border); border-radius: .45rem; background: var(--nn-surface); color: var(--nn-text); padding: .4rem .55rem; }
+.section button, .footer button { min-height: 2.75rem; border: 1px solid var(--nn-border); border-radius: .5rem; padding: .45rem .75rem; background: var(--nn-surface); color: var(--nn-text); cursor: pointer; }
+.section button:disabled, .footer button:disabled { opacity: .5; cursor: default; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .75rem; }
+.list { padding: 0; list-style: none; max-height: 11rem; overflow: auto; }
+.list li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; border-top: 1px solid var(--nn-border); padding: .5rem 0; }
+.preview { display: grid; gap: .3rem; padding: .7rem; border: 1px solid var(--nn-border); border-radius: .5rem; background: var(--nn-surface); }
+.actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .8rem; }
+.limit { border-left: 3px solid var(--nn-border); padding-left: .75rem; }
+.success { color: var(--nn-text) !important; }.error { color: var(--nn-danger) !important; }
+.footer { display: flex; justify-content: flex-end; border-top: 1px solid var(--nn-border); padding-top: .75rem; }

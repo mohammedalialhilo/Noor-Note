@@ -8,11 +8,11 @@ import { AppError, getUserErrorMessage, logError, type ErrorAction } from '../li
 import { SearchClient } from '../lib/search-client';
 import { SemanticSearchClient } from '../lib/semantic-client';
 import { exportVaultZip, importVaultZip } from '../lib/vault-archive';
+import { discardRecoveryDraft, readRecoveryDraft, writeRecoveryDraft } from '../lib/recovery-drafts';
 
 type SaveStatus = 'saved' | 'saving' | 'error';
 type NotePatch = Partial<Pick<VaultNote, 'title' | 'markdown'>>;
 export interface NewNoteOptions { title?: string; templateId?: string | null; skipTemplate?: boolean; daily?: boolean; baseId?: string; selection?: string; clipboard?: string; now?: Date; period?: { kind: PeriodKind; date: Date } }
-const DRAFT_PREFIX = 'noor-note-draft:';
 
 function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
@@ -21,25 +21,6 @@ function downloadBlob(filename: string, blob: Blob): void {
   link.download = filename;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}
-
-function readDraft(note: VaultNote): NotePatch | null {
-  try {
-    const raw = localStorage.getItem(`${DRAFT_PREFIX}${note.id}`);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || !('updatedAt' in parsed) || !('markdown' in parsed) || !('title' in parsed) || !('vaultId' in parsed)) return null;
-    const draft = parsed as Record<string, unknown>;
-    if (draft.vaultId !== note.vaultId || typeof draft.updatedAt !== 'number' || draft.updatedAt <= Date.parse(note.updatedAt) || typeof draft.markdown !== 'string' || typeof draft.title !== 'string') return null;
-    if (draft.markdown === note.markdown && draft.title === note.title) return null;
-    return { title: draft.title, markdown: draft.markdown };
-  } catch { return null; }
-}
-
-function writeDraft(note: VaultNote): void {
-  if (note.markdown.length > 1_000_000) return;
-  try { localStorage.setItem(`${DRAFT_PREFIX}${note.id}`, JSON.stringify({ vaultId: note.vaultId, title: note.title, markdown: note.markdown, updatedAt: Math.max(Date.now(), Date.parse(note.updatedAt) + 1) })); }
-  catch { /* Autosave continues through IndexedDB when localStorage is unavailable. */ }
 }
 
 export function useVaultWorkspace() {
@@ -59,6 +40,7 @@ export function useVaultWorkspace() {
   const [selectedNote, setSelectedNote] = useState<VaultNote | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [firstRun, setFirstRun] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [recoveredDraft, setRecoveredDraft] = useState(false);
@@ -99,7 +81,7 @@ export function useVaultWorkspace() {
     if (!repository || !id) { updateSelected(null); return; }
     const note = await repository.getNote(id);
     if (!note || note.deletedAt) { updateSelected(null); return; }
-    const draft = readDraft(note);
+    const draft = readRecoveryDraft(note);
     if (draft) {
       const recovered = { ...note, ...draft };
       updateSelected(recovered);
@@ -117,12 +99,12 @@ export function useVaultWorkspace() {
       try {
         const saved = await repository.saveNote(id, patch);
         updateEntry(saved);
-        if (selectedRef.current?.id === id && pendingRef.current?.id === id) writeDraft({ ...selectedRef.current, updatedAt: saved.updatedAt });
+        if (selectedRef.current?.id === id && pendingRef.current?.id === id) writeRecoveryDraft({ ...selectedRef.current, updatedAt: saved.updatedAt });
         if (selectedRef.current?.id === id && !pendingRef.current && selectedRef.current.title === saved.title && selectedRef.current.markdown === saved.markdown) {
           updateSelected(saved);
           setSaveStatus('saved');
           dirtyRef.current = false;
-          try { localStorage.removeItem(`${DRAFT_PREFIX}${id}`); } catch { /* Recovery draft is best effort. */ }
+          discardRecoveryDraft(id);
         }
         if (navigator.storage?.estimate) {
           try {
@@ -154,11 +136,14 @@ export function useVaultWorkspace() {
     let live = true;
     const repository = new DexieVaultRepository();
     repositoryRef.current = repository;
-    void repository.initialize().then(async (vault) => {
+    void Promise.all([repository.listVaults(), repository.listDeletedVaults()]).then(async ([existing, deleted]) => {
+      const fresh = existing.length === 0 && deleted.length === 0;
+      const vault = await repository.initialize();
       if (!live) return;
       await refresh(vault.id);
       const first = (await repository.listTree(vault.id)).notes.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
       await loadSelected(first?.id ?? null);
+      setFirstRun(fresh);
       setReady(true);
     }).catch((caught: unknown) => { if (live) { failure('open', caught); setReady(true); } });
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -192,7 +177,7 @@ export function useVaultWorkspace() {
     if (!current || current.id !== id) return;
     const next = { ...current, ...patch };
     updateSelected(next);
-    writeDraft(next);
+    writeRecoveryDraft(next);
     dirtyRef.current = true;
     pendingRef.current = { id, patch: { ...pendingRef.current?.patch, ...patch } };
     setSaveStatus('saving');
@@ -590,7 +575,7 @@ export function useVaultWorkspace() {
   return {
     repository: repositoryRef.current, vaults, deletedVaults, activeVault, tree, notes: tree?.notes ?? [], folders: tree?.folders ?? [], attachments: tree?.attachments ?? [],
     selectedNote, selectedId: selectedNote?.id ?? null, selectedFolderId, setSelectedFolderId, selectNote,
-    ready, error, clearError: () => setError(null), saveStatus, recoveredDraft, clearRecoveredDraft: () => setRecoveredDraft(false), quotaWarning, clearQuotaWarning: () => setQuotaWarning(false),
+    ready, firstRun, error, clearError: () => setError(null), saveStatus, recoveredDraft, clearRecoveredDraft: () => setRecoveredDraft(false), quotaWarning, clearQuotaWarning: () => setQuotaWarning(false),
     flushPending, patchNote, addNote, createDailyNote, openPeriodNote, createCalendarEvent, moveCalendarDate, renderNoteTemplate, applyPropertiesFromTemplate, removeNote, importFiles, toggleTask, updateTask, assignTaskIds, exportZip, switchVault, createVault,
     renameVault: (id: string, name: string) => invoke((repository) => repository.renameVault(id, name)),
     deleteVault, restoreVault,

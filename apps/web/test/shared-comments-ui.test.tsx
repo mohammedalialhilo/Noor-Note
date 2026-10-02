@@ -26,6 +26,7 @@ describe('shared comment panel', () => {
     const onDraftUsed = vi.fn();
     const view = render(<SharedComments vaultId={vaultId} targetKind="note" targetId={noteId} role="commenter" draftAnchor={anchor} onDraftUsed={onDraftUsed} markdown="before selected after" />);
     await waitFor(() => expect(screen.getByLabelText('New comment')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('No comments yet. Start a conversation below.')).toBeTruthy());
     fireEvent.change(screen.getByLabelText('New comment'), { target: { value: 'Please review @owner@example.test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post comment' }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith('noor_create_comment_thread', expect.objectContaining({ p_vault: vaultId, p_kind: 'note', p_target: noteId, p_anchor: anchor, p_body: 'Please review @owner@example.test' })));

@@ -27,6 +27,7 @@ export interface CommandContext extends CommandAvailability {
   showBases: () => void;
   showCanvas: () => void;
   showTrash: () => void;
+  showRecovery: () => void;
   showSettings: () => void;
   insertTemplate: () => void;
   createFromTemplate: () => void;
@@ -114,6 +115,7 @@ const core: CommandDefinition[] = [
   { id: 'navigation.bases', name: 'Show Bases', category: 'Navigation', handler: (c) => c.showBases() },
   { id: 'navigation.canvas', name: 'Show Canvas', category: 'Navigation', handler: (c) => c.showCanvas() },
   { id: 'navigation.trash', name: 'Open Trash', category: 'Navigation', handler: (c) => c.showTrash() },
+  { id: 'navigation.recovery', name: 'Open Recovery Center', category: 'Navigation', handler: (c) => c.showRecovery() },
   { id: 'navigation.settings', name: 'Open settings', category: 'Navigation', handler: (c) => c.showSettings() },
   { id: 'workspaces.manage', name: 'Manage workspaces', category: 'Workspaces', handler: (c) => c.manageWorkspaces() },
   { id: 'workspaces.save', name: 'Save current workspace', category: 'Workspaces', handler: (c) => c.saveWorkspace() },

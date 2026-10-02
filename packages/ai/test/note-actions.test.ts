@@ -14,6 +14,7 @@ describe('AI note actions', () => {
       expect(prepared.content).toHaveLength(1);
       expect(prepared.content[0]?.markdown).toBe(action.id === 'summarize-note' ? source.markdown : selection.text);
       expect(prepared.prompt).not.toContain(selection.text);
+      if (action.id === 'translate') { expect(prepared.prompt).not.toContain('Swedish'); expect(prepared.userInstruction).toBe('Target language: Swedish'); }
     }
   });
 

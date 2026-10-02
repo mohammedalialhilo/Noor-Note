@@ -24,9 +24,14 @@ export const previewImageTypes = new Set(['image/png', 'image/jpeg', 'image/gif'
 export function previewImageMime(mime: string, filename: string): string {
   if (mime && mime !== 'application/octet-stream') return mime;
   const extension = filename.split('.').at(-1)?.toLowerCase();
-  const byExtension: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-    webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff',
-  };
-  return extension ? byExtension[extension] ?? '' : '';
+  switch (extension) {
+    case 'png': return 'image/png';
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    case 'avif': return 'image/avif';
+    case 'bmp': return 'image/bmp';
+    case 'tif': case 'tiff': return 'image/tiff';
+    default: return '';
+  }
 }

@@ -1,5 +1,11 @@
 # Development
 
+First-run setup is described in [onboarding.md](onboarding.md). Browser tests seed a completed onboarding marker by default; `e2e/onboarding.spec.ts` creates fresh contexts to exercise the welcome flow.
+
+The [Recovery Center](file-recovery.md) uses `VaultRepository.listRecentRevisions`, IndexedDB schema version 6's `[vaultId+createdAt]` revision index, and the shared `recovery-drafts.ts` reader used by autosave. Preserve the active-vault checks when changing draft restore or copy behavior. Run `packages/storage/test/vault-repository.test.ts`, `apps/web/test/recovery-center.test.ts`, and `apps/web/test/recovery-center-ui.test.tsx` after recovery changes.
+
+Backup Center uses the existing vault ZIP import/export path. Apply `202610020001_noor_backups.sql` after earlier Supabase migrations to create the private Storage bucket and account-scoped policies. Read [Backup and recovery](backup-recovery.md) before changing its authenticated encryption format or restore rules. Run `encrypted-backup.test.ts`, `cloud-backup.test.ts`, `vault-archive.test.ts`, and `database-security.test.ts` for backup changes.
+
 Large-vault benchmark instructions, measured results, and current limits are in [performance.md](performance.md). Keep the opt-in benchmark out of routine unit test timing; use `NOOR_PERF=1` when profiling changes to storage, indexing, tree rendering, graph layout, Bases, tasks, or sync.
 
 Publishing requires the Supabase publishing migration and the two public Supabase environment values. `pnpm --filter @noor-note/web build` creates the public Mermaid and KaTeX assets. Netlify Dev is needed to exercise `/p/*` locally; `next dev` does not run the Netlify Function. The embedded PostgreSQL test `apps/web/test/publishing.test.ts` checks anonymous reads, role-gated writes, and asset revocation.

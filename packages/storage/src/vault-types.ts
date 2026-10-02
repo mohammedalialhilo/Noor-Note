@@ -83,6 +83,8 @@ export interface VaultRepository {
   restoreNote(id: string): Promise<VaultNote>;
   permanentlyDeleteNote(id: string): Promise<void>;
   listRevisions(noteId: string): Promise<Revision[]>;
+  listRecentRevisions(vaultId: string, limit: number): Promise<Revision[]>;
+  permanentlyDeleteRevision(noteId: string, revisionId: string): Promise<void>;
   restoreRevision(noteId: string, revisionId: string, expectedRevision: number): Promise<VaultNote>;
   duplicateRevision(noteId: string, revisionId: string): Promise<VaultNote>;
   importRevisionHistory(noteId: string, revisions: Revision[]): Promise<void>;

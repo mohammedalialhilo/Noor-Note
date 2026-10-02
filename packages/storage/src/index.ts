@@ -67,6 +67,8 @@ export class DexieNoteRepository implements NoteRepository {
   }
 }
 export { DexieVaultRepository, toNoteEntry } from './vault-repository';
+export { DexieNotificationStore } from './notification-store';
+export type { LocalNotificationInput } from './notification-store';
 export { BrowserAttachmentStore } from './attachment-store';
 export type { AttachmentBytesStore, BlobFallback } from './attachment-store';
 export type { NoteEntry, StoredVaultObject, VaultRepository, VaultStatistics, VaultTree, VaultItemKind } from './vault-types';

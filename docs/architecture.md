@@ -6,6 +6,8 @@ Private share links use a separate table and `/s/*` Netlify Function. The functi
 
 Noor Note is a static Next.js application with a local-first vault engine. Netlify serves the app shell; normal vault operations use browser storage. Optional Supabase accounts can enable per-vault cloud sync without changing the local write path.
 
+Settings are scoped to device, vault, vault workspace, or account. The category catalog and versioned device editor settings live in the web app; vault settings are validated by the core schema and repository, while account controls use server-authorized APIs. See [settings.md](settings.md).
+
 ```mermaid
 flowchart LR
   UI[Responsive workspace and editor] --> Hook[useVaultWorkspace]
@@ -102,6 +104,8 @@ Fenced Mermaid blocks are rendered by a shared, on-demand browser adapter in Liv
 The [PWA service worker](pwa.md) caches explicitly allowed public shell assets only, with optional OCR/transcription runtimes cached on first use. It never backs up notes or intercepts private APIs. Local vault access remains in IndexedDB/OPFS, and update activation waits for an editor flush. Sync keeps local writes independent of network status and distinguishes local durability from remote acknowledgement. See [sync protocol](sync-protocol.md).
 
 Shared [activity history](activity-history.md) is a server-side derived feed for plaintext cloud vaults. Postgres triggers record committed metadata changes, invitation and permission actions, and comment actions. A small IndexedDB outbox makes revision-restore notifications retryable after offline edits. The Activity view queries authorized pages and refreshes after private Realtime invalidation.
+
+[In-app notifications](notifications.md) use a narrower recipient-specific stream. Postgres triggers create invitations, mentions, replies, and sharing changes in a table with recipient-only RLS. The browser keeps sync, backup, and app-update issues in a separate IndexedDB database. The notification hook combines both streams without adding ordinary note edits to either one.
 
 The [web clipper](web-clipper.md) is a separate pnpm workspace under `apps/clipper-extension`. It extracts in an active-tab content script and sends a bounded validated draft to the web app's `/clipper` review route. `packages/core/src/web-clip.ts` owns the shared clip contract and portable Markdown metadata. The review route stages drafts in IndexedDB and commits through the existing vault repository; the extension has no direct database or cloud credentials.
 

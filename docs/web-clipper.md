@@ -1,5 +1,7 @@
 # Noor Note web clipper
 
+Captured page content remains untrusted after it becomes Markdown in a vault. If a clipped note is later supplied to AI, it follows the same reviewed source-data boundary as any other note; page text cannot provide application instructions or authorize AI tools. See [AI trust boundaries](ai-trust-boundaries.md).
+
 **Status: PARTIAL.** `apps/clipper-extension` builds a Chromium Manifest V3 extension and a Firefox variant from the same source. The Chromium build uses a background service worker. The Firefox build uses a background script because its Manifest V3 background model differs. Firefox packaging and live browser behavior still need device testing.
 
 ## Use

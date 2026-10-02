@@ -104,6 +104,7 @@ class VaultDatabase extends Dexie {
       }
     });
     this.version(5).stores({ syncTombstones: 'key, vaultId' });
+    this.version(6).stores({ revisions: 'id, noteId, vaultId, createdAt, [vaultId+createdAt]' });
   }
 }
 
@@ -804,6 +805,19 @@ export class DexieVaultRepository implements VaultRepository {
 
   async listRevisions(noteId: string): Promise<Revision[]> {
     return (await this.database.revisions.where('noteId').equals(noteId).toArray()).map((item) => revisionSchema.parse(item)).sort((a, b) => b.number - a.number);
+  }
+  async listRecentRevisions(vaultId: string, limit: number): Promise<Revision[]> {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Recent revision limit must be between 1 and 100');
+    const rows = await this.database.revisions.where('[vaultId+createdAt]').between([vaultId, Dexie.minKey], [vaultId, Dexie.maxKey]).reverse().limit(limit).toArray();
+    return rows.map((item) => revisionSchema.parse(item));
+  }
+  async permanentlyDeleteRevision(noteId: string, revisionId: string): Promise<void> {
+    await this.database.transaction('rw', [this.database.revisions, this.database.noteEntries], async () => {
+      const [revision, note] = await Promise.all([this.database.revisions.get(revisionId), this.database.noteEntries.get(noteId)]);
+      if (!revision || revision.noteId !== noteId || !note || note.vaultId !== revision.vaultId) throw new Error('Revision does not belong to this note');
+      if (revision.number === note.revision) throw new Error('The current revision cannot be deleted');
+      await this.database.revisions.delete(revisionId);
+    });
   }
 
   async restoreRevision(noteId: string, revisionId: string, expectedRevision: number): Promise<VaultNote> {

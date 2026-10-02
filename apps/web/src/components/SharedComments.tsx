@@ -32,6 +32,7 @@ export function SharedComments({ vaultId, targetKind, targetId, role, draftAncho
   const [editing, setEditing] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
   const [showResolved, setShowResolved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [registered, setRegistered] = useState(targetKind !== 'canvas');
@@ -42,11 +43,12 @@ export function SharedComments({ vaultId, targetKind, targetId, role, draftAncho
     if (result.error) throw result.error;
     const parsed = z.array(threadSchema).parse(result.data);
     setThreads(parsed);
-    if (!parsed.length) { setMessages([]); return; }
+    if (!parsed.length) { setMessages([]); setLoaded(true); return; }
     const replies = await client.from('noor_comment_messages').select('id,thread_id,author_id,body,mentions,created_at,edited_at,deleted_at')
       .in('thread_id', parsed.map((item) => item.id)).order('created_at');
     if (replies.error) throw replies.error;
     setMessages(z.array(messageSchema).parse(replies.data));
+    setLoaded(true);
   }, [client, vaultId, targetKind, targetId]);
   useEffect(() => { queueMicrotask(() => { void refresh().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Could not load comments.')); }); }, [refresh]);
   useEffect(() => {
@@ -131,6 +133,8 @@ export function SharedComments({ vaultId, targetKind, targetId, role, draftAncho
   return <section className={`${styles.root} details-section`} aria-label="Shared comments"><h3>Shared comments <span>{visible.length}</span></h3>
     {error && <p role="alert">{error}</p>}
     <label><input type="checkbox" checked={showResolved} onChange={(event) => setShowResolved(event.target.checked)} /> Show resolved</label>
+    {!loaded && !error && <p role="status">Loading comments…</p>}
+    {loaded && !visible.length && <p role="status">{threads.length && !showResolved ? 'No open comments. Turn on Show resolved to review earlier discussions.' : focusAnchorId ? 'No comments on this selection yet.' : canComment(role) ? 'No comments yet. Start a conversation below.' : 'No comments yet.'}</p>}
     {visible.map((thread) => <article key={thread.id} className={styles.thread}>
       <div className={styles.heading}>{thread.anchor && <button type="button" disabled={thread.anchor.kind === 'text' && markdown !== undefined && !resolveTextCommentAnchor(markdown, thread.anchor, collaborativeText)} onClick={() => navigate(thread.anchor)}>{thread.anchor.kind === 'text' ? `“${thread.anchor.exact.slice(0, 80)}”${markdown !== undefined && !resolveTextCommentAnchor(markdown, thread.anchor, collaborativeText) ? ' (text changed)' : ''}` : thread.anchor.kind === 'canvas' ? 'Canvas card' : `PDF page ${thread.anchor.page}`}</button>}
         <span>{thread.resolved_at ? 'Resolved' : 'Open'}</span>

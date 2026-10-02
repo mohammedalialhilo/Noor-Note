@@ -18,7 +18,7 @@ export interface BaseViewActions {
   onBulkEdit: (ids: string[], field: string, input: string) => Promise<boolean>;
   onBulkTrash: (ids: string[]) => Promise<boolean>;
 }
-interface Props extends BaseViewActions { notes: NoteEntry[]; view: BaseView; fields: string[]; folders: BaseFolder[]; attachments: Attachment[]; repository: VaultRepository | null; computed?: BaseComputedValues; formulaLabels?: Readonly<Record<string, string>> }
+interface Props extends BaseViewActions { notes: NoteEntry[]; view: BaseView; fields: string[]; folders: BaseFolder[]; attachments: Attachment[]; repository: VaultRepository | null; computed?: BaseComputedValues; formulaLabels?: Readonly<Record<string, string>>; onEditQuery?: () => void }
 const label = (field: string, formulaLabels?: Readonly<Record<string, string>>) => formulaLabels?.[field] ?? (field.startsWith('property:') ? field.slice(9) : ({ createdAt: 'Created', updatedAt: 'Updated', openTasks: 'Open tasks' } as Record<string, string>)[field] ?? field[0]!.toUpperCase() + field.slice(1));
 const value = (note: NoteEntry, field: string, folders: BaseFolder[], computed?: BaseComputedValues) => baseValueText(baseFieldValue(note, field, folders, computed));
 const dateOf = (note: NoteEntry, field: string | null, folders: BaseFolder[], computed?: BaseComputedValues): string | null => {
@@ -137,7 +137,7 @@ function RangeView({ notes, view, folders, computed, onOpen }: Props) {
 export function BaseViewPanel(props: Props) {
   const { notes, view, folders, computed, onOpen } = props;
   if (view.kind === 'chart') return <BaseChartView notes={notes} config={view.chart} folders={folders} computed={computed} title={view.name} onOpenNote={onOpen} />;
-  if (!notes.length) return <div className={styles.empty}>No notes match this Base and view. Adjust the query or filters, or add properties to your Markdown notes.</div>;
+  if (!notes.length) return <div className={styles.empty}><strong>No notes match this view</strong><p>Adjust the Base query or view filters, or create a note with matching properties.</p>{props.onEditQuery && <button type="button" onClick={props.onEditQuery}>Edit Base query</button>}</div>;
   if (view.kind === 'table') return <TableView {...props} />;
   if (view.kind === 'cards' || view.kind === 'gallery') return <CardView {...props} />;
   if (view.kind === 'kanban') return <KanbanView {...props} />;

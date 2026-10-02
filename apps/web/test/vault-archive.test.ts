@@ -1,9 +1,10 @@
 import 'fake-indexeddb/auto';
 import Dexie from 'dexie';
+import { BlobReader, BlobWriter, TextReader, TextWriter, ZipReader, ZipWriter } from '@zip.js/zip.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appendCanvasNode, baseSchema, canvasSchema, createCanvasNode, metadataSchemaSchema, newBase, newCanvas, ocrRecordSchema, parsePdfReference, pdfAnnotationSchema, pdfReferenceLink, readBaseDefinition, readCanvasDocument, transcriptSchema, withCanvasDocument } from '@noor-note/core';
 import { DexieVaultRepository, type AttachmentBytesStore } from '@noor-note/storage';
-import { exportVaultZip, importVaultZip } from '../src/lib/vault-archive';
+import { exportVaultZip, importVaultZip, verifyVaultZip } from '../src/lib/vault-archive';
 import { defaultWorkspaceLayout, parseWorkspaceLayout, WorkspacesStore } from '../src/lib/workspace-layout';
 import { BookmarksStore } from '../src/lib/bookmarks';
 import { PdfAnnotationsStore } from '../src/lib/pdf-annotations';
@@ -39,6 +40,8 @@ describe('vault ZIP portability', () => {
     await repository.addAttachment(vault.id, assets.id, new Blob(['png bytes'], { type: 'image/png' }), 'chart.png');
     const zip = await exportVaultZip(repository, vault.id);
     expect(zip.size).toBeGreaterThan(0);
+    expect(await verifyVaultZip(zip)).toMatchObject({ vaultName: vault.name, notes: 1, folders: 2, attachments: 1, version: 1 });
+    expect((await repository.listVaults()).length).toBe(1);
     const importedId = await importVaultZip(repository, zip);
     expect(importedId).not.toBe(vault.id);
     const tree = await repository.listTree(importedId);
@@ -46,6 +49,29 @@ describe('vault ZIP portability', () => {
     expect(tree.attachments.map((attachment) => attachment.path)).toEqual(['/Research/assets/chart.png']);
     expect((await repository.getNote(tree.notes[0]!.id))?.markdown).toBe('See ![](assets/chart.png)');
     expect(await (await repository.getAttachmentBlob(tree.attachments[0]!.id))?.text()).toBe('png bytes');
+  });
+
+  it('rejects changed checksums and unsupported versions before creating a vault', async () => {
+    const vault = await repository.initialize();
+    await repository.createNote(vault.id, null, 'Source', 'Untouched content');
+    const original = await exportVaultZip(repository, vault.id);
+    const rewrite = async (change: (manifest: { version: number; notes: { checksum: string }[] }) => void) => {
+      const reader = new ZipReader(new BlobReader(original));
+      const writer = new ZipWriter(new BlobWriter('application/zip'));
+      try {
+        for (const entry of (await reader.getEntries()).filter((item) => !item.directory)) {
+          if (entry.filename === 'noor-note.json') {
+            const manifest = JSON.parse(await entry.getData(new TextWriter())) as { version: number; notes: { checksum: string }[] };
+            change(manifest);
+            await writer.add(entry.filename, new TextReader(JSON.stringify(manifest)));
+          } else await writer.add(entry.filename, new BlobReader(await entry.getData(new BlobWriter())));
+        }
+        return writer.close();
+      } finally { await reader.close(); }
+    };
+    await expect(verifyVaultZip(await rewrite((manifest) => { manifest.notes[0]!.checksum = '0'.repeat(64); }))).rejects.toThrow('checksum failed');
+    await expect(verifyVaultZip(await rewrite((manifest) => { manifest.version = 99; }))).rejects.toThrow('version is not supported');
+    expect((await repository.listVaults()).length).toBe(1);
   });
 
   it('round trips revision history with remapped note and revision IDs', async () => {

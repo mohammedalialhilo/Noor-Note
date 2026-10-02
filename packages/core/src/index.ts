@@ -33,5 +33,6 @@ export * from './task-engine';
 export * from './task-query';
 export * from './calendar-engine';
 export * from './note-refactor';
+export * from './notification';
 export * from './web-clip';
 export * from './web-clip-template';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aiScopeAllowed, defaultAiPolicy, insufficientVaultEvidence, setAiMode, setAiScopePermission, verifyGroundedAnswer, vaultChatPrompt, type ChatSource } from '../src';
+import { aiScopeAllowed, defaultAiPolicy, insufficientVaultEvidence, setAiMode, setAiScopePermission, verifyGroundedAnswer, vaultChatPrompt, vaultChatUserQuestion, type ChatSource } from '../src';
 
 const source: ChatSource = { id: 'S1', vaultId: crypto.randomUUID(), noteId: crypto.randomUUID(), revision: 2, title: 'Plan', path: '/Plan.md', heading: 'Timeline', blockId: null, line: 5, from: 30, to: 80, excerpt: 'The release is due in October.' };
 
@@ -13,8 +13,11 @@ describe('grounded vault chat', () => {
   });
 
   it('keeps the prompt bounded and requires source markers', () => {
-    expect(vaultChatPrompt('When is the release?', [{ question: 'What is the plan?', answer: 'October [S1]' }])).toContain('Every factual answer line must end');
-    expect(() => vaultChatPrompt('x'.repeat(501))).toThrow();
+    expect(vaultChatPrompt).toContain('Every factual answer line must end');
+    const request = vaultChatUserQuestion('When is the release?', [{ question: 'What is the plan?', answer: 'October [S1]' }]);
+    expect(JSON.parse(request)).toEqual({ question: 'When is the release?', previousUserQuestions: ['What is the plan?'] });
+    expect(request).not.toContain('October [S1]');
+    expect(() => vaultChatUserQuestion('x'.repeat(501))).toThrow();
   });
 
   it('requires explicit vault retrieval permission for a folder request', () => {

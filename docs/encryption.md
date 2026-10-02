@@ -1,5 +1,7 @@
 # End-to-end encryption
 
+Backup encryption is independent of encrypted sync. See [Backup and recovery](backup-recovery.md) for the separate passphrase, chunk format, visible metadata, and loss/recovery limits.
+
 **Status: PARTIAL.** Noor Note can encrypt a new, previously unsynced private vault before enabling cloud sync. Local Markdown remains readable in this browser. Encrypted sync requires the Supabase [encryption migration](../supabase/migrations/202609290002_noor_e2ee.sql) after the base sync migration. The migration fixes each cloud vault's encryption mode at creation and rejects plaintext records in encrypted vaults. Existing plaintext cloud vaults cannot be converted retroactively because old snapshots, backups, logs, and uploaded attachments may remain on the server. Create a new vault for encrypted sync.
 
 ## Threat model

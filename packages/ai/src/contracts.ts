@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AiMessage } from './trust-boundary';
 
 const id = z.uuid();
 const label = z.string().trim().min(1).max(120);
@@ -45,6 +46,7 @@ export type AiContentItem = z.infer<typeof aiContentItemSchema>;
 export const aiRequestPlanSchema = z.object({
   id, provider: aiProviderDescriptorSchema, capability: aiCapabilitySchema,
   scope: aiScopeSchema, prompt: z.string().trim().min(1).max(10_000),
+  userInstruction: z.string().trim().min(1).max(1_000).nullable().default(null),
   content: z.array(aiContentItemSchema).max(50), createdAt: z.iso.datetime({ offset: true }),
 }).strict().superRefine((plan, context) => {
   if (!plan.provider.capabilities.includes(plan.capability)) context.addIssue({ code: 'custom', path: ['capability'], message: 'Provider does not support this capability' });
@@ -59,9 +61,11 @@ export const aiRequestPlanSchema = z.object({
 export type AiRequestPlan = z.infer<typeof aiRequestPlanSchema>;
 
 export interface ChatCompletion { text: string; model: string; usage?: { inputTokens?: number; outputTokens?: number } }
+/** Provider adapters receive the gateway-built message roles, not raw vault records. */
+export interface AiChatRequest { readonly messages: readonly AiMessage[]; readonly sourceCount: number; readonly sourceCharacters: number }
 export interface ChatCompletionProvider {
   readonly descriptor: AiProviderDescriptor;
-  complete(plan: AiRequestPlan, signal: AbortSignal): Promise<ChatCompletion>;
+  complete(request: AiChatRequest, signal: AbortSignal): Promise<ChatCompletion>;
 }
 export interface EmbeddingProvider {
   readonly descriptor: AiProviderDescriptor;

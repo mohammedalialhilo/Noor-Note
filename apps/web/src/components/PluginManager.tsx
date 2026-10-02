@@ -131,7 +131,7 @@ export function PluginManager({ host }: { host: PluginHost }) {
       <p className={styles.warning}>A plugin given note access can copy the content it reads. Install only code you trust.</p>
       <div className={styles.actions}><button type="button" disabled={busy} onClick={() => { void install(); }}>Install with selected permissions</button><button type="button" disabled={busy} onClick={() => setCandidate(null)}>Cancel</button></div>
     </div>}
-    {snapshot.installations.length === 0 ? <p>No plugins installed.</p> : <div className={styles.installed}>{snapshot.installations.map((item) => <div className={styles.plugin} key={item.id}>
+    {snapshot.installations.length === 0 ? <p role="status">No plugins installed. Choose a local bundle above to review its permissions and install it.</p> : <div className={styles.installed}>{snapshot.installations.map((item) => <div className={styles.plugin} key={item.id}>
       <div><div className={styles.pluginTitle}><strong>{item.bundle.manifest.name}</strong><small>{item.bundle.manifest.version}</small><span className={styles.state}>{snapshot.errors[item.id] ? 'Error' : item.enabled ? 'Enabled' : 'Disabled'}</span></div>
         <p>{item.bundle.manifest.description}</p>
         <small>{snapshot.contributions.filter((entry) => entry.pluginId === item.id).length} active contributions</small>

@@ -1,19 +1,21 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Bold, BookOpenText, Check, CheckSquare2, GraduationCap, Mic,
+  ArrowLeft, Bell, Bold, BookOpenText, Check, CheckSquare2, GraduationCap, Mic,
   ChevronDown, Code2, Command, Download, Eye, FileText, Heading2, Italic, Link2,
   List, Menu, MoreHorizontal, PanelRightClose, PanelRightOpen, Plus,
-  Search, ShieldCheck, Table2, Tags, Trash2, Upload, X, Undo2, Redo2, Pin, Columns2, Rows2, RotateCcw, Copy, Network, Database, PanelsTopLeft, CalendarDays, MessageSquareText, Bookmark as BookmarkIcon, Star, Sparkles, History, LayoutDashboard, Presentation,
+  Search, ShieldCheck, Table2, Tags, Trash2, LifeBuoy, Upload, X, Undo2, Redo2, Pin, Columns2, Rows2, RotateCcw, Copy, Network, Database, PanelsTopLeft, CalendarDays, MessageSquareText, Bookmark as BookmarkIcon, Star, Sparkles, History, LayoutDashboard, Presentation,
 } from 'lucide-react';
 import type { NoteActionEdit, NoteActionId, NoteActionSource } from '@noor-note/ai';
-import { buildTagTree, documentStats, extractTags, headingSlug, parseOutline, type Bookmark, type MetadataSchema, type NoteRefactorRequest, type PeriodKind, type PropertyType, type PropertyValue, type StudyCandidate, type VaultNote, type Workspace as SavedWorkspace } from '@noor-note/core';
+import { buildTagTree, documentStats, extractTags, headingSlug, parseOutline, type Bookmark, type MetadataSchema, type NoorNotification, type NoteRefactorRequest, type PeriodKind, type PropertyType, type PropertyValue, type StudyCandidate, type VaultNote, type Workspace as SavedWorkspace } from '@noor-note/core';
 import type { NoteEntry } from '@noor-note/storage';
 import type { SearchMode, SearchResult, SearchSort } from '@noor-note/search';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction } from 'react';
 import { useVaultWorkspace } from '../hooks/useVaultWorkspace';
 import { useCloudSync } from '../hooks/useCloudSync';
+import { useNotifications } from '../hooks/useNotifications';
 import { usePwa } from '../hooks/usePwa';
 import { useMobileViewport } from '../hooks/useMobileViewport';
 import { useCollaborativeNote } from '../hooks/useCollaborativeNote';
@@ -31,6 +33,7 @@ import { MarkdownReadingView } from './MarkdownReadingView';
 import { NotePresentation } from './NotePresentation';
 import { ImportCenter } from './ImportCenter';
 import { ExportCenter } from './ExportCenter';
+import { BackupCenter } from './BackupCenter';
 import { LinkInspector } from './LinkInspector';
 import { PropertyPanel } from './PropertyPanel';
 import { TagManager } from './TagManager';
@@ -45,6 +48,7 @@ import { SettingsView } from './SettingsView';
 import pwaStyles from './PwaNotice.module.css';
 import { VaultExplorer } from './VaultExplorer';
 import { TrashView } from './TrashView';
+import { RecoveryCenter } from './RecoveryCenter';
 import { TemplatePicker, type TemplateAction } from './TemplatePicker';
 import { NoteComposer } from './NoteComposer';
 import { AiNoteActions } from './AiNoteActions';
@@ -55,6 +59,7 @@ import { OcrPanel } from './OcrPanel';
 import { TranscriptPanel } from './TranscriptPanel';
 import { VersionHistory } from './VersionHistory';
 import { SharedActivity } from './SharedActivity';
+import { NotificationCenter } from './NotificationCenter';
 import { IntegratedCalendar } from './IntegratedCalendar';
 import { TaskDashboard } from './TaskDashboard';
 import { StudyView } from './StudyView';
@@ -62,6 +67,9 @@ import { StudyStore } from '../lib/study';
 import { DashboardsView } from './DashboardsView';
 import { WorkspaceManager } from './WorkspaceManager';
 import { BookmarkManager } from './BookmarkManager';
+import { OnboardingDialog, type OnboardingPhase } from './OnboardingDialog';
+import { browserOnboardingStorage, completeOnboarding, shouldShowOnboarding } from '../lib/onboarding';
+import { canOpenDirectory, pickDirectoryFiles } from '../lib/directory-import';
 
 import { BookmarksStore, type BookmarkDraft } from '../lib/bookmarks';
 import { WorkspacesStore, defaultWorkspaceLayout, parseWorkspaceLayout, readCurrentLayout, readStartupWorkspaceId, reconcileWorkspaceLayout, writeCurrentLayout, writeStartupWorkspaceId, type CalendarLayout, type WorkspaceLayout } from '../lib/workspace-layout';
@@ -80,6 +88,16 @@ const CanvasView = dynamic(() => import('./CanvasView').then((module) => module.
 const PdfReader = dynamic(() => import('./PdfReader').then((module) => module.PdfReader), { loading: () => <div className="view-loading" role="status">Opening PDF…</div> });
 
 type View = ShellView;
+
+async function serviceWorkerFingerprint(): Promise<string> {
+  try {
+    const response = await fetch('/sw.js', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Service worker unavailable');
+    const bytes = await response.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(digest)].slice(0, 12).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  } catch { return 'unknown'; }
+}
 
 function EmptyNotes({ onCreate }: { onCreate: () => void }) {
   return (
@@ -379,8 +397,23 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(function Editor
 
 export function Workspace() {
   useMobileViewport();
+  const router = useRouter();
   const workspace = useVaultWorkspace();
   const account = useAccount();
+  const [onboardingPhase, setOnboardingPhase] = useState<OnboardingPhase>(null);
+  const [folderAvailable, setFolderAvailable] = useState(false);
+  const onboardingSettledRef = useRef(false);
+  const onboardingImportRef = useRef(false);
+  const onboardingImportSucceededRef = useRef(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setFolderAvailable(canOpenDirectory()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!workspace.ready || !workspace.activeVault || workspace.firstRun !== true || onboardingImportRef.current || onboardingSettledRef.current) return;
+    const timer = window.setTimeout(() => { if (!onboardingImportRef.current && !onboardingSettledRef.current && shouldShowOnboarding(workspace.firstRun, browserOnboardingStorage())) setOnboardingPhase('choice'); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [workspace.ready, workspace.activeVault, workspace.firstRun]);
   const pwa = usePwa();
   const { online, offlineReady } = pwa;
   const workspaceRepository = workspace.repository;
@@ -388,6 +421,32 @@ export function Workspace() {
   const selectWorkspaceNote = workspace.selectNote;
   const activeVaultId = workspace.activeVault?.id;
   const cloudSync = useCloudSync(workspaceRepository, activeVaultId ?? null, workspace.refreshActive, flushWorkspacePending);
+  const notifications = useNotifications(account.client, account.user?.id ?? null, activeVaultId ?? null);
+  const recordNotification = notifications.recordLocal;
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationSettingsCategory, setNotificationSettingsCategory] = useState<'general' | 'sync' | 'collaboration'>('general');
+  const syncIssueRef = useRef<string | null>(null);
+  const priorSyncIssuesRef = useRef(new Set<string>());
+  useEffect(() => {
+    const issue = activeVaultId && cloudSync.snapshot.status === 'error' ? `${activeVaultId}:${cloudSync.snapshot.error ?? 'unknown'}` : null;
+    if (!issue) { syncIssueRef.current = null; return; }
+    if (syncIssueRef.current === issue) return;
+    syncIssueRef.current = issue;
+    const rearm = priorSyncIssuesRef.current.has(issue);
+    priorSyncIssuesRef.current.add(issue);
+    void recordNotification({ sourceKey: `sync:${activeVaultId}`, kind: 'sync_issue', title: 'Cloud sync needs attention',
+      body: 'Changes are saved locally. Open Sync settings to review the issue and retry.', vaultId: activeVaultId!,
+      destination: { kind: 'settings', section: 'sync' } }, rearm);
+  }, [activeVaultId, cloudSync.snapshot.status, cloudSync.snapshot.error, recordNotification]);
+  useEffect(() => {
+    if (!pwa.updateAvailable) return;
+    let active = true;
+    void serviceWorkerFingerprint().then((fingerprint) => {
+      if (active) void recordNotification({ sourceKey: `app-update:${fingerprint}`, kind: 'app_update', title: 'Noor Note update ready',
+        body: 'Save your work and apply the available application update.', vaultId: null, destination: { kind: 'update' } });
+    });
+    return () => { active = false; };
+  }, [pwa.updateAvailable, recordNotification]);
   const startCollaboration = async (note: VaultNote): Promise<void> => {
     if (!account.client || !account.user || !workspaceRepository || !cloudSync.enabled || !canEdit(cloudSync.role)) throw new Error('An editor role and cloud sync are required to start collaboration');
     if (workspace.activeVault?.settings.syncEncryptionMode === 'e2ee') throw new Error('Shared vault keys are required before encrypted collaboration');
@@ -434,7 +493,7 @@ export function Workspace() {
     if (graphCloseTimer.current !== null) window.clearTimeout(graphCloseTimer.current);
     return () => { graphCloseTimer.current = window.setTimeout(() => graphClient.close(), 0); };
   }, [graphClient]);
-  const { preferences, setPreferences } = useEditorPreferences();
+  const { preferences, setPreferences, persistenceWarning: editorPersistenceWarning } = useEditorPreferences();
   const [editorSession, setEditorSession] = useState(() => { const root = createEditorPane(); return { root: root as EditorLayoutNode, activePaneId: root.id, closedTabs: [] as { paneId: string; tab: EditorTab }[] }; });
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
@@ -486,6 +545,7 @@ export function Workspace() {
   const [importCount, setImportCount] = useState<number | null>(null);
   const [importRequest, setImportRequest] = useState<{ id: string; files?: File[]; folderId: string | null } | null>(null);
   const [exportRequest, setExportRequest] = useState<string | null>(null);
+  const [backupOpen, setBackupOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [templateAction, setTemplateAction] = useState<TemplateAction | null>(null);
@@ -927,6 +987,39 @@ export function Workspace() {
     if (next === 'notes') setActiveTag(null);
     if (sidebarOpen) window.setTimeout(() => document.querySelector<HTMLButtonElement>('.collection-topbar .mobile-menu, .list-topbar .mobile-menu')?.focus(), 0);
   };
+  const openNotificationSource = (item: NoorNotification) => {
+    const destination = item.destination;
+    if (destination.kind === 'settings') { setNotificationSettingsCategory(destination.section); switchView('settings'); return; }
+    if (destination.kind === 'update') {
+      setNotificationSettingsCategory('general'); switchView('settings');
+      return;
+    }
+    void (async () => {
+      if (!workspace.repository || !workspace.vaults.some((vault) => vault.id === destination.vaultId)) {
+        setNotificationSettingsCategory('collaboration'); switchView('settings'); return;
+      }
+      if (workspace.activeVault?.id !== destination.vaultId) await workspace.switchVault(destination.vaultId);
+      if (destination.kind === 'backup') { setBackupOpen(true); return; }
+      if (destination.kind === 'note') {
+        const note = await workspace.repository.getNote(destination.noteId);
+        if (note && !note.deletedAt && note.vaultId === destination.vaultId) { selectNote(note.id); return; }
+      }
+      if (destination.kind === 'canvas') {
+        const canvases = await workspace.repository.listObjects('canvas', destination.vaultId);
+        if (canvases.some((canvas) => canvas.id === destination.canvasId)) {
+          setCanvasTabs((current) => ({ ids: current.ids.includes(destination.canvasId) ? current.ids : [...current.ids, destination.canvasId], activeId: destination.canvasId }));
+          switchView('canvas'); return;
+        }
+      }
+      if (destination.kind === 'pdf') {
+        const tree = await workspace.repository.listTree(destination.vaultId);
+        if (tree.attachments.some((attachment) => attachment.id === destination.attachmentId && !attachment.deletedAt)) {
+          setPdfTarget({ id: destination.attachmentId, page: 1, annotationId: null }); return;
+        }
+      }
+      setNotificationSettingsCategory('collaboration'); switchView('settings');
+    })().catch(() => { setNotificationSettingsCategory('collaboration'); switchView('settings'); });
+  };
   const showGraph = (scope: 'global' | 'local') => { setGraphScope(scope); switchView('graph'); };
   const showLocalGraphFor = async (id: string) => {
     if (!await workspace.selectNote(id)) return;
@@ -951,6 +1044,21 @@ export function Workspace() {
     if (cloudSync.enabled && !canEdit(cloudSync.role)) return;
     setImportRequest({ id: crypto.randomUUID(), files, folderId });
   };
+  const finishOnboarding = () => { onboardingSettledRef.current = true; completeOnboarding(browserOnboardingStorage()); setOnboardingPhase(null); };
+  const beginOnboardingImport = (files?: File[]) => {
+    onboardingImportRef.current = true;
+    onboardingImportSucceededRef.current = false;
+    setOnboardingPhase(null);
+    openImport(files, null);
+  };
+  const closeImport = () => {
+    setImportRequest(null);
+    if (!onboardingImportRef.current) return;
+    onboardingImportRef.current = false;
+    if (onboardingImportSucceededRef.current) { onboardingSettledRef.current = true; completeOnboarding(browserOnboardingStorage()); setOnboardingPhase('tour'); }
+    else setOnboardingPhase('choice');
+    onboardingImportSucceededRef.current = false;
+  };
 
   const activePane = findEditorPane(editorSession.root, editorSession.activePaneId);
   const activeTab = activePane?.tabs.find((tab) => tab.id === activePane.activeTabId);
@@ -964,7 +1072,7 @@ export function Workspace() {
   const commandContext: CommandContext = {
     ...commandAvailability,
     openQuickSwitcher: () => setSwitcherOpen(true), openPalette: () => setCommandOpen(true),
-    createNote: () => { void create(); }, focusSearch, showNotes: () => switchView('notes'), showDashboard: () => switchView('dashboard'), showTasks: () => switchView('tasks'), showStudy: () => switchView('study'), showActivity: () => switchView('activity'), showTags: () => switchView('tags'), showGlobalGraph: () => showGraph('global'), showLocalGraph: () => showGraph('local'), showBases: () => switchView('bases'), showCanvas: () => switchView('canvas'), showTrash: () => switchView('trash'), showSettings: () => switchView('settings'),
+    createNote: () => { void create(); }, focusSearch, showNotes: () => switchView('notes'), showDashboard: () => switchView('dashboard'), showTasks: () => switchView('tasks'), showStudy: () => switchView('study'), showActivity: () => switchView('activity'), showTags: () => switchView('tags'), showGlobalGraph: () => showGraph('global'), showLocalGraph: () => showGraph('local'), showBases: () => switchView('bases'), showCanvas: () => switchView('canvas'), showTrash: () => switchView('trash'), showRecovery: () => switchView('recovery'), showSettings: () => switchView('settings'),
     insertTemplate: () => openTemplateAction('insert'), createFromTemplate: () => openTemplateAction('create'), applyTemplateProperties: () => openTemplateAction('properties'), previewTemplate: () => openTemplateAction('preview'), createDailyNote: () => { void workspace.createDailyNote().then((note) => { if (note) selectNote(note.id); }); }, showPeriodNotes: (kind) => { setPeriodKind(kind); switchView('periods'); },
     importFiles: () => openImport(), exportVault: exportAll,
     closeTab: () => { if (activeTab && activePane) void closeTab(activePane.id, activeTab.id); },
@@ -1079,7 +1187,7 @@ export function Workspace() {
 
   return (
     <div className="app-shell" aria-busy={!workspace.ready} style={{ '--nn-nav-width': `${sidebarWidths.navigationWidth}px`, '--nn-note-list-width': `${sidebarWidths.noteListWidth}px`, '--nn-inspector-width': `${sidebarWidths.inspectorWidth}px` } as CSSProperties}>
-      <ActivityBar view={view} onNavigate={(next) => next === 'graph' ? showGraph('global') : switchView(next)} onSearch={focusSearch} onCommand={() => { void commandRegistry.execute('navigation.command-palette', commandContext); }} />
+      <ActivityBar view={view} onNavigate={(next) => next === 'graph' ? showGraph('global') : switchView(next)} onSearch={focusSearch} onCommand={() => { void commandRegistry.execute('navigation.command-palette', commandContext); }} onNotifications={() => { setNotificationsOpen(true); void notifications.refresh(); }} unreadNotifications={notifications.unreadCount} />
       {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={closeSidebar} />}
       <aside ref={sidebarRef} className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`} aria-label="Primary navigation">
         <div className="brand-block"><BrandMark /><div><div className="brand-name">Noor Note<span className="brand-period">.</span></div><div className="brand-caption">A brighter place to think</div></div></div>
@@ -1095,6 +1203,7 @@ export function Workspace() {
             <button type="button" className={view === 'tasks' ? 'active' : ''} onClick={() => switchView('tasks')}><CheckSquare2 size={19} /> Tasks <span>{openTaskCount}</span></button>
             <button type="button" className={view === 'study' ? 'active' : ''} onClick={() => switchView('study')}><GraduationCap size={19} /> Study</button>
             <button type="button" className={view === 'activity' ? 'active' : ''} onClick={() => switchView('activity')}><History size={19} /> Activity</button>
+            <button type="button" onClick={() => { setSidebarOpen(false); setNotificationsOpen(true); void notifications.refresh(); }}><Bell size={19} /> Notifications{notifications.unreadCount > 0 && <span>{notifications.unreadCount}</span>}</button>
             <button type="button" className={view === 'tags' || activeTag ? 'active' : ''} onClick={() => switchView('tags')}><Tags size={19} /> Tags <span>{allTags.length}</span></button>
             <button type="button" className={view === 'graph' ? 'active' : ''} onClick={() => showGraph('global')}><Network size={19} /> Graph</button>
             <button type="button" className={view === 'bases' ? 'active' : ''} onClick={() => switchView('bases')}><Database size={19} /> Bases</button>
@@ -1104,6 +1213,7 @@ export function Workspace() {
             <button type="button" onClick={openBookmarkManager}><BookmarkIcon size={19} /> Bookmarks</button>
             <button type="button" onClick={() => setWorkspaceManagerOpen(true)}><Columns2 size={19} /> Workspaces{savedWorkspaces.length > 0 && <span>{savedWorkspaces.length}</span>}</button>
             <button type="button" className={view === 'trash' ? 'active' : ''} onClick={() => switchView('trash')}><Trash2 size={19} /> Trash</button>
+            <button type="button" className={view === 'recovery' ? 'active' : ''} onClick={() => switchView('recovery')}><LifeBuoy size={19} /> Recovery Center</button>
             <button type="button" className={view === 'settings' ? 'active' : ''} onClick={() => switchView('settings')}><ShieldCheck size={19} /> Settings</button>
           </nav>
           <VaultExplorer workspace={workspace} readOnly={cloudSync.enabled && !canEdit(cloudSync.role)} focusFolder={focusFolder} onSelectNote={selectNote} onCreateNote={(folderId) => { void create(folderId); }} onOpenTrash={() => switchView('trash')} onOpenPdf={(id) => setPdfTarget({ id, page: 1, annotationId: null })} onOpenOcr={(id) => setOcrTarget({ id: id ?? null, page: 1 })} onOpenTranscript={(id) => setTranscriptTarget({ id: id ?? null, timeMs: 0 })} onImport={openImport} />
@@ -1135,20 +1245,21 @@ export function Workspace() {
             </button>) : null}
             {query.trim() && ocrResults.map((result) => <button type="button" key={result.id} className="note-card" onClick={() => setOcrTarget({ id: result.attachmentId ?? null, page: result.page ?? 1 })}><div className="note-card-top"><FileText size={16} /><span>OCR Â· page {result.page ?? 1}</span></div><strong>{result.title}</strong><SearchSnippet result={result} /></button>)}
             {query.trim() && transcriptResults.map((result) => <button type="button" key={result.id} className="note-card" onClick={() => setTranscriptTarget({ id: result.attachmentId ?? null, timeMs: result.timeMs ?? 0 })}><div className="note-card-top"><Mic size={16} /><span>Transcript Â· {Math.floor((result.timeMs ?? 0) / 60000)}:{String(Math.floor((result.timeMs ?? 0) / 1000) % 60).padStart(2, '0')}</span></div><strong>{result.title}</strong><SearchSnippet result={result} /></button>)}
-            {workspace.ready && (!query.trim() || searchResults !== null) && !filteredNotes.length && !ocrResults.length && !transcriptResults.length && !(query.trim() && searchMode !== 'lexical' && !semanticReady) && (query || activeTag ? <div className="list-message">No notes match this search.</div> : <><div className="list-message empty-list-message">Your notes will appear here.</div><div className="mobile-empty-cta"><BrandMark size={42} /><strong>Start with one idea.</strong><p>Your notes stay on this device. You can export them as Markdown whenever you like.</p><button type="button" className="button-primary" onClick={() => void create()}><Plus size={17} /> Create your first note</button></div></>)}
+            {workspace.ready && (!query.trim() || searchResults !== null) && !filteredNotes.length && !ocrResults.length && !transcriptResults.length && !(query.trim() && searchMode !== 'lexical' && !semanticReady) && (query || activeTag ? <div className="list-message"><strong>No matching notes</strong><p>Try a different search or clear the current filters.</p><button type="button" onClick={() => { setQuery(''); setActiveTag(null); }}>Clear search and filters</button></div> : <><div className="list-message empty-list-message">Your notes will appear here.</div><div className="mobile-empty-cta"><BrandMark size={42} /><strong>Start with one idea.</strong><p>Your notes stay on this device. You can export them as Markdown whenever you like.</p><button type="button" className="button-primary" onClick={() => void create()}><Plus size={17} /> Create your first note</button></div></>)}
           </div>
           <div className="list-footer"><span className="footer-live-dot" /> {online ? offlineReady ? 'Ready offline' : 'Local workspace' : 'Working offline'} <span>Â·</span> Stored locally</div>
         </section>}
 
         {view === 'notes' ? (workspace.notes.length ? renderEditorNode(editorSession.root) : <main className="empty-main"><div className="empty-topbar"><button type="button" className="icon-button mobile-menu" aria-label="Open navigation" onClick={openSidebar}><Menu size={21} /></button><span>My workspace</span><span className="empty-top-status"><span /> Local-first workspace</span></div><EmptyNotes onCreate={() => void create()} /></main>) : view === 'dashboard' && workspace.activeVault ?
           <DashboardsView key={workspace.activeVault.id} vaultId={workspace.activeVault.id} repository={workspace.repository} notes={workspace.notes} folders={workspace.folders} bookmarks={bookmarks} recentIds={recentNoteIds} bases={bookmarkBases} selectedNoteId={workspace.selectedNote?.id ?? null} activityEnabled={cloudSync.enabled && cloudSync.role !== null && workspace.activeVault.settings.syncEncryptionMode !== 'e2ee'} onOpenNote={(id, line) => selectNote(id, undefined, undefined, line)} onOpenBase={(id) => { setBaseTabs((current) => ({ ids: current.ids.includes(id) ? current.ids : [...current.ids, id], activeId: id })); switchView('bases'); }} onNavigate={switchView} onOpenBookmark={openBookmark} onOpenNavigation={openSidebar} /> : view === 'trash' && workspace.activeVault ?
-          <TrashView vaultId={workspace.activeVault.id} repository={workspace.repository} onOpenNavigation={openSidebar} onChanged={workspace.refreshActive} /> : view === 'graph' && workspace.activeVault ?
-          <GraphView key={`${workspace.activeVault.id}:${layoutRestoreKey}`} vaultId={workspace.activeVault.id} notes={workspace.notes} attachments={workspace.attachments} selectedNote={workspace.selectedNote} repository={workspace.repository} client={graphClient} scope={graphScope} onScopeChange={setGraphScope} initialState={graphState} onStateChange={setGraphState} onOpenNote={(id, mode) => { void openQuickNote(id, mode); }} onShowLocalGraph={(id) => { void showLocalGraphFor(id); }} onFilterTag={(tag) => { setActiveTag(tag); setQuery(''); setView('notes'); setMobileEditor(false); }} onOpenNavigation={openSidebar} /> : view === 'settings' ?
-          <SettingsView workspace={workspace} sync={cloudSync} pwa={pwa} onImport={() => openImport()} onExport={exportAll} onBack={() => switchView('notes')} onOpenNote={selectNote} onPreviewTemplate={(id) => openTemplateAction('preview', id)} onOpenNavigation={openSidebar} commands={commandDefinitions} shortcutOverrides={shortcutOverrides} onShortcutChange={changeShortcut} pluginHost={pluginHost} /> :
+          <TrashView vaultId={workspace.activeVault.id} repository={workspace.repository} onOpenNavigation={openSidebar} onChanged={workspace.refreshActive} /> : view === 'recovery' && workspace.activeVault && workspace.repository ?
+          <RecoveryCenter key={workspace.activeVault.id} vaultId={workspace.activeVault.id} repository={workspace.repository} beforeChange={workspace.flushPending} onChanged={workspace.refreshActive} onOpenNote={(id) => selectNote(id)} onOpenTrash={() => switchView('trash')} onOpenNavigation={openSidebar} readOnly={cloudSync.enabled && !canEdit(cloudSync.role)} /> : view === 'graph' && workspace.activeVault ?
+          <GraphView key={`${workspace.activeVault.id}:${layoutRestoreKey}`} vaultId={workspace.activeVault.id} notes={workspace.notes} attachments={workspace.attachments} selectedNote={workspace.selectedNote} repository={workspace.repository} client={graphClient} scope={graphScope} onScopeChange={setGraphScope} initialState={graphState} onStateChange={setGraphState} onOpenNote={(id, mode) => { void openQuickNote(id, mode); }} onShowLocalGraph={(id) => { void showLocalGraphFor(id); }} onFilterTag={(tag) => { setActiveTag(tag); setQuery(''); setView('notes'); setMobileEditor(false); }} onOpenNotes={() => switchView('notes')} onOpenNavigation={openSidebar} /> : view === 'settings' ?
+          <SettingsView key={notificationSettingsCategory} initialCategory={notificationSettingsCategory} workspace={workspace} sync={cloudSync} pwa={pwa} onImport={() => openImport()} onExport={exportAll} onBackup={() => setBackupOpen(true)} onRecovery={() => switchView('recovery')} onBack={() => switchView('notes')} onOpenNote={selectNote} onPreviewTemplate={(id) => openTemplateAction('preview', id)} onOpenNavigation={openSidebar} commands={commandDefinitions} shortcutOverrides={shortcutOverrides} onShortcutChange={changeShortcut} pluginHost={pluginHost} editorPreferences={preferences} onEditorPreferences={setPreferences} editorPersistenceWarning={editorPersistenceWarning} onNavigate={switchView} onShowTour={() => setOnboardingPhase('tour')} /> :
           view === 'bases' && workspace.activeVault ? <BasesView key={`${workspace.activeVault.id}:${layoutRestoreKey}`} workspace={workspace} initialTabs={baseTabs} onTabsChange={setBaseTabs} onOpenNote={selectNote} onCreateFromBase={(baseId, folderId) => { void workspace.addNote(folderId, { baseId }).then((note) => { if (note) selectNote(note.id); }); }} onOpenNavigation={openSidebar} readOnly={cloudSync.enabled && !canEdit(cloudSync.role)} pluginViews={pluginSnapshot.contributions.flatMap((item) => item.contribution.kind === 'base-view' ? [{ id: `${item.pluginId}:${item.contribution.id}`, title: item.contribution.title, body: item.contribution.body }] : [])} /> :
           view === 'canvas' && workspace.activeVault ? <CanvasView key={`${workspace.activeVault.id}:${layoutRestoreKey}`} workspace={workspace} initialTabs={canvasTabs} onTabsChange={setCanvasTabs} onOpenNote={selectNote} onOpenNavigation={openSidebar} sharedRole={cloudSync.enabled && workspace.activeVault.settings.syncEncryptionMode !== 'e2ee' ? cloudSync.role : null} pluginTools={pluginSnapshot.contributions.flatMap((item) => item.contribution.kind === 'canvas-tool' ? [{ id: `${item.pluginId}:${item.contribution.id}`, title: item.contribution.title, cardText: item.contribution.cardText }] : [])} /> :
           view === 'periods' && workspace.activeVault ? <IntegratedCalendar key={`${workspace.activeVault.id}:${layoutRestoreKey}`} workspace={workspace} periodKind={periodKind} onPeriodKindChange={setPeriodKind} initialState={calendarState} onStateChange={setCalendarState} onOpenNote={(id, line) => selectNote(id, undefined, undefined, line)} onOpenNavigation={openSidebar} onSettings={() => switchView('settings')} /> :
-          view === 'tasks' && workspace.activeVault ? <TaskDashboard key={workspace.activeVault.id} workspace={workspace} onOpenNote={(id, line, blockId) => selectNote(id, undefined, blockId ?? undefined, line)} onOpenNavigation={openSidebar} /> :
+          view === 'tasks' && workspace.activeVault ? <TaskDashboard key={workspace.activeVault.id} workspace={workspace} onOpenNote={(id, line, blockId) => selectNote(id, undefined, blockId ?? undefined, line)} onOpenNavigation={openSidebar} onOpenNotes={() => switchView('notes')} /> :
           view === 'study' && workspace.activeVault ? <StudyView key={`${workspace.activeVault.id}:${studyDraft?.token ?? 'browse'}`} workspace={workspace} initialDraft={studyDraft} onOpenNote={(id, line) => selectNote(id, undefined, undefined, line)} onOpenNavigation={openSidebar} readOnly={cloudSync.enabled && !canEdit(cloudSync.role)} /> :
           view === 'activity' && workspace.activeVault ? <SharedActivity key={workspace.activeVault.id} vaultId={workspace.activeVault.id} enabled={cloudSync.enabled && cloudSync.role !== null && workspace.activeVault.settings.syncEncryptionMode !== 'e2ee'} notes={workspace.notes} onOpenNote={selectNote} onOpenSettings={() => switchView('settings')} onOpenNavigation={openSidebar} /> :
           view === 'chat' && workspace.activeVault ? <VaultChat key={workspace.activeVault.id} workspace={workspace} onOpenSource={(source) => { void workspace.repository?.getNote(source.noteId).then((note) => { if (!note) return; const offset = note.markdown.indexOf(source.excerpt); const line = offset >= 0 ? note.markdown.slice(0, offset).split('\n').length : source.line; selectNote(source.noteId, undefined, offset >= 0 ? undefined : source.blockId ?? source.heading ?? undefined, line); }); }} onOpenNavigation={openSidebar} onOpenSettings={() => switchView('settings')} /> :
@@ -1170,8 +1281,11 @@ export function Workspace() {
       {historyNoteId && workspace.repository && <VersionHistory key={historyNoteId} noteId={historyNoteId} repository={workspace.repository} flushPending={workspace.flushPending} onClose={() => setHistoryNoteId(null)} onRestored={async (note, sourceRevisionId) => { await cloudSync.recordRevisionRestore(note.id, sourceRevisionId); await workspace.refreshActive(); await workspace.selectNote(note.id); setNoteSnapshots((current) => new Map(current).set(note.id, note)); }} onDuplicated={async (note) => { await workspace.refreshActive(); selectNote(note.id); }} />}
       {aiAction && workspace.selectedNote && <AiNoteActions key={`${workspace.selectedNote.id}:${aiAction}`} action={aiAction} source={workspace.selectedNote} selection={aiSelection} onClose={() => setAiAction(null)} onApplyEdit={(source: NoteActionSource, edit) => workspace.selectedNote?.id === source.id && workspace.selectedNote.markdown === source.markdown && Boolean(editorPaneRef.current?.replaceRange(source.markdown, edit))} onApplyTitle={(source: NoteActionSource, title) => { if (workspace.selectedNote?.id !== source.id || workspace.selectedNote.markdown !== source.markdown || workspace.selectedNote.title !== source.title) return false; workspace.patchNote(source.id, { title }); return true; }} onUndoEdit={(id, expectedMarkdown) => workspace.selectedNote?.id === id && workspace.selectedNote.markdown === expectedMarkdown && Boolean(editorPaneRef.current?.undoIfCurrent(expectedMarkdown))} onUndoTitle={(id, expectedTitle, previousTitle) => { if (workspace.selectedNote?.id !== id || workspace.selectedNote.title !== expectedTitle) return false; workspace.patchNote(id, { title: previousTitle }); return true; }} onSaveStudyCards={cloudSync.enabled && !canEdit(cloudSync.role) ? undefined : saveAiStudyCards} onUndoStudyCards={undoAiStudyCards} />}
       {audioRecorderOpen && <AudioRecorder workspace={workspace} initialNoteId={workspace.selectedNote?.id ?? null} onClose={() => setAudioRecorderOpen(false)} onOpenNote={selectNote} onOpenTranscript={(id) => setTranscriptTarget({ id, timeMs: 0 })} />}
-      {importRequest && workspace.repository && workspace.activeVault && <ImportCenter key={importRequest.id} files={importRequest.files} repository={workspace.repository} vaults={cloudSync.enabled ? workspace.vaults.filter((vault) => vault.id === workspace.activeVault?.id) : workspace.vaults} initialVaultId={workspace.activeVault.id} initialFolderId={importRequest.folderId} beforeImport={workspace.flushPending} onClose={() => setImportRequest(null)} onImported={async (count, targetVaultId) => { await workspace.switchVault(targetVaultId); setImportCount(count); setView('notes'); setActiveTag(null); setMobileEditor(true); }} />}
+      {importRequest && workspace.repository && workspace.activeVault && <ImportCenter key={importRequest.id} files={importRequest.files} repository={workspace.repository} vaults={cloudSync.enabled ? workspace.vaults.filter((vault) => vault.id === workspace.activeVault?.id) : workspace.vaults} initialVaultId={workspace.activeVault.id} initialFolderId={importRequest.folderId} beforeImport={workspace.flushPending} onClose={closeImport} onImported={async (count, targetVaultId) => { await workspace.switchVault(targetVaultId); onboardingImportSucceededRef.current = true; setImportCount(count); setView('notes'); setActiveTag(null); setMobileEditor(true); }} />}
+      <OnboardingDialog phase={onboardingPhase} folderAvailable={folderAvailable} accountAvailable={account.configuration.kind === 'supabase'} onCreate={async (name) => { const vault = workspace.activeVault; if (!vault) return false; const renamed = await workspace.renameVault(vault.id, name); if (!renamed) return false; onboardingSettledRef.current = true; completeOnboarding(browserOnboardingStorage()); setOnboardingPhase('tour'); return true; }} onImport={() => beginOnboardingImport()} onOpenFolder={async () => { const files = await pickDirectoryFiles(); if (!files) return false; beginOnboardingImport(files); return true; }} onSignIn={() => { finishOnboarding(); router.push('/account/'); }} onContinue={() => { onboardingSettledRef.current = true; completeOnboarding(browserOnboardingStorage()); setOnboardingPhase('tour'); }} onSkip={finishOnboarding} onFinish={finishOnboarding} />
       {exportRequest && workspace.repository && workspace.activeVault && <ExportCenter key={exportRequest} repository={workspace.repository} vaultId={workspace.activeVault.id} initialNoteId={workspace.selectedNote?.id} initialFolderId={workspace.selectedFolderId} beforeExport={workspace.flushPending} onClose={() => setExportRequest(null)} />}
+      {backupOpen && workspace.repository && workspace.activeVault && <BackupCenter repository={workspace.repository} vaultId={workspace.activeVault.id} beforeBackup={workspace.flushPending} client={account.client} userId={account.user?.id ?? null} onClose={() => setBackupOpen(false)} onBackupFailure={() => { if (workspace.activeVault) void notifications.recordLocal({ sourceKey: `backup:${workspace.activeVault.id}`, kind: 'backup_failure', title: 'Backup could not finish', body: 'Your vault is unchanged. Open Backup Center to review the error and retry.', vaultId: workspace.activeVault.id, destination: { kind: 'backup', vaultId: workspace.activeVault.id } }, true); }} onRestored={async (id) => { await workspace.switchVault(id); setBackupOpen(false); setView('notes'); }} />}
+      <NotificationCenter open={notificationsOpen} onOpenChange={setNotificationsOpen} items={notifications.items} filter={notifications.filter} onFilterChange={notifications.setFilter} unreadCount={notifications.unreadCount} hasMore={notifications.hasMore} loadingMore={notifications.loadingMore} onLoadMore={notifications.loadMore} error={notifications.error} loading={notifications.loading} onRefresh={notifications.refresh} onMarkRead={notifications.markRead} onMarkUnread={notifications.markUnread} onMarkAllRead={notifications.markAllRead} onNavigate={openNotificationSource} />
       {pdfTarget && <PdfReader key={`${pdfTarget.id}:${pdfTarget.page}:${pdfTarget.annotationId ?? ''}`} workspace={workspace} attachmentId={pdfTarget.id} initialPage={pdfTarget.page} initialAnnotationId={pdfTarget.annotationId} onClose={() => setPdfTarget(null)} onOpenNote={(id, line) => { setPdfTarget(null); selectNote(id, undefined, undefined, line); }} onOpenOcr={(id, page) => setOcrTarget({ id, page })} sharedRole={cloudSync.enabled && workspace.activeVault?.settings.syncEncryptionMode !== 'e2ee' ? cloudSync.role : null} />}
       {ocrTarget && <OcrPanel key={`${ocrTarget.id ?? 'upload'}:${ocrTarget.page}`} workspace={workspace} initialAttachmentId={ocrTarget.id} initialPage={ocrTarget.page} onClose={() => setOcrTarget(null)} onSaved={() => { workspace.invalidateOcrSearch(); setOcrRevision((value) => value + 1); }} />}
       {transcriptTarget && <TranscriptPanel key={`${transcriptTarget.id ?? 'upload'}:${transcriptTarget.timeMs}`} workspace={workspace} initialAttachmentId={transcriptTarget.id} initialTimeMs={transcriptTarget.timeMs} onClose={() => { setTranscriptTarget(null); if (window.location.hash.startsWith('#noor-transcript=')) history.replaceState(null, '', window.location.pathname + window.location.search); }} onSaved={() => { workspace.invalidateDerivedSearch(); setOcrRevision((value) => value + 1); }} onOpenNote={selectNote} />}

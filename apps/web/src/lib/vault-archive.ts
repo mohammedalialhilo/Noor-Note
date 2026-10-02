@@ -2,6 +2,7 @@ import { baseSchema, canvasDocumentSchema, canvasSchema, checksumMarkdown, dashb
 import type { VaultRepository } from '@noor-note/storage';
 import { parseWorkspaceLayout, remapWorkspaceLayout, WorkspacesStore } from './workspace-layout';
 import { BookmarksStore } from './bookmarks';
+import { readBoundedZipBlob, readBoundedZipText, verifyBoundedZipEntry } from './zip-safety';
 
 const MANIFEST_NAME = 'noor-note.json';
 const MAX_ENTRIES = 10_000;
@@ -13,6 +14,64 @@ const MAX_MANIFEST_BYTES = 50_000_000;
 function zipName(path: string): string { return path.replace(/^\//u, ''); }
 function assertZipName(name: string): void {
   if (!name || name.startsWith('/') || name.includes('\\') || name.split('/').some((part) => part === '' || part === '.' || part === '..')) throw new Error('Unsafe ZIP entry path');
+}
+
+export interface VaultBackupPreview {
+  vaultName: string;
+  exportedAt: string;
+  version: 1;
+  notes: number;
+  folders: number;
+  attachments: number;
+  revisions: number;
+  archiveBytes: number;
+}
+
+/** Read and authenticate every archive entry before offering a restore. */
+export async function verifyVaultZip(archive: Blob): Promise<VaultBackupPreview> {
+  if (archive.size > MAX_TOTAL_BYTES) throw new Error('Backup exceeds the supported archive size');
+  const { BlobReader, ZipReader } = await import('@zip.js/zip.js');
+  const reader = new ZipReader(new BlobReader(archive));
+  try {
+    const entries = (await reader.getEntries()).filter((entry) => !entry.directory);
+    if (entries.length > MAX_ENTRIES) throw new Error('Backup contains too many files');
+    const byName = new Map<string, typeof entries[number]>();
+    let total = 0;
+    for (const entry of entries) {
+      assertZipName(entry.filename);
+      if (!Number.isSafeInteger(entry.uncompressedSize) || entry.uncompressedSize < 0) throw new Error('Backup entry size is invalid');
+      if (byName.has(entry.filename)) throw new Error('Backup contains duplicate paths');
+      byName.set(entry.filename, entry);
+      total += entry.uncompressedSize;
+      if (total > MAX_TOTAL_BYTES) throw new Error('Backup contents exceed the size limit');
+    }
+    const manifestEntry = byName.get(MANIFEST_NAME);
+    if (!manifestEntry || manifestEntry.uncompressedSize > MAX_MANIFEST_BYTES) throw new Error('Noor Note backup manifest is missing or too large');
+    const raw: unknown = JSON.parse(await readBoundedZipText(manifestEntry, MAX_MANIFEST_BYTES));
+    if (!raw || typeof raw !== 'object' || !('format' in raw) || raw.format !== 'noor-note-vault') throw new Error('This is not a Noor Note vault backup');
+    if (!('version' in raw) || raw.version !== 1) throw new Error('This backup version is not supported by this Noor Note release');
+    const manifest = vaultArchiveManifestSchema.parse(raw);
+    const expected = new Set([MANIFEST_NAME, ...manifest.notes.map((item) => zipName(item.path)), ...manifest.attachments.map((item) => zipName(item.path)), ...(manifest.revisions ?? []).map((item) => item.entry)]);
+    if (expected.size !== entries.length || [...expected].some((name) => !byName.has(name))) throw new Error('Backup files do not match its manifest');
+    for (const note of manifest.notes) {
+      const entry = byName.get(zipName(note.path))!;
+      if (entry.uncompressedSize > MAX_NOTE_BYTES) throw new Error('Backup note is too large');
+      const markdown = await readBoundedZipText(entry, MAX_NOTE_BYTES);
+      if (await checksumMarkdown(markdown) !== note.checksum) throw new Error(`Backup note checksum failed: ${note.path}`);
+    }
+    for (const attachment of manifest.attachments) {
+      const entry = byName.get(zipName(attachment.path))!;
+      if (entry.uncompressedSize !== attachment.size) throw new Error(`Backup attachment size failed: ${attachment.path}`);
+      await verifyBoundedZipEntry(entry, attachment.size);
+    }
+    for (const descriptor of manifest.revisions ?? []) {
+      const entry = byName.get(descriptor.entry)!;
+      if (entry.uncompressedSize > MAX_REVISION_BYTES) throw new Error('Backup revision is too large');
+      const revision = revisionSchema.parse(JSON.parse(await readBoundedZipText(entry, MAX_REVISION_BYTES)));
+      if (revision.id !== descriptor.id || revision.noteId !== descriptor.noteId || await checksumMarkdown(revision.markdown) !== revision.checksum) throw new Error('Backup revision checksum failed');
+    }
+    return { vaultName: manifest.vault.name, exportedAt: manifest.exportedAt, version: 1, notes: manifest.notes.length, folders: manifest.folders.length, attachments: manifest.attachments.length, revisions: manifest.revisions?.length ?? 0, archiveBytes: archive.size };
+  } finally { await reader.close(); }
 }
 
 export async function exportVaultZip(repository: VaultRepository, vaultId: string, folderPath?: string): Promise<Blob> {
@@ -80,7 +139,7 @@ export async function exportVaultZip(repository: VaultRepository, vaultId: strin
 }
 
 export async function importVaultZip(repository: VaultRepository, archive: Blob): Promise<string> {
-  const { BlobReader, BlobWriter, TextWriter, ZipReader } = await import('@zip.js/zip.js');
+  const { BlobReader, ZipReader } = await import('@zip.js/zip.js');
   const reader = new ZipReader(new BlobReader(archive));
   const previous = await repository.getActiveVault();
   let importedVaultId: string | null = null;
@@ -91,6 +150,7 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
     let total = 0;
     for (const entry of entries) {
       assertZipName(entry.filename);
+      if (!Number.isSafeInteger(entry.uncompressedSize) || entry.uncompressedSize < 0) throw new Error('ZIP entry size is invalid');
       if (names.has(entry.filename)) throw new Error('ZIP contains duplicate paths');
       names.add(entry.filename);
       total += entry.uncompressedSize;
@@ -99,7 +159,7 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
     const byName = new Map(entries.map((entry) => [entry.filename, entry]));
     const manifestEntry = byName.get(MANIFEST_NAME);
     if (!manifestEntry || !manifestEntry.getData || manifestEntry.uncompressedSize > MAX_MANIFEST_BYTES) throw new Error('Noor Note ZIP manifest is missing or too large');
-    const manifestText = await manifestEntry.getData(new TextWriter());
+    const manifestText = await readBoundedZipText(manifestEntry, MAX_MANIFEST_BYTES);
     const manifest = vaultArchiveManifestSchema.parse(JSON.parse(manifestText));
     const required = [...manifest.notes.map((item) => zipName(item.path)), ...manifest.attachments.map((item) => zipName(item.path)), ...(manifest.revisions ?? []).map((item) => item.entry)];
     for (const name of required) if (!byName.has(name)) throw new Error(`ZIP file is missing: ${name}`);
@@ -133,7 +193,7 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
     for (const note of manifest.notes) {
       const entry = byName.get(zipName(note.path));
       if (!entry?.getData || entry.uncompressedSize > MAX_NOTE_BYTES) throw new Error('ZIP note is missing or too large');
-      const markdown = await entry.getData(new TextWriter());
+      const markdown = await readBoundedZipText(entry, MAX_NOTE_BYTES);
       if (await checksumMarkdown(markdown) !== note.checksum) throw new Error(`ZIP note checksum failed: ${note.path}`);
       const folderId = note.folderId ? folderIds.get(note.folderId) : null;
       if (note.folderId && !folderId) throw new Error('ZIP note folder is missing');
@@ -156,7 +216,8 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
       if (!entry?.getData || entry.uncompressedSize !== attachment.size) throw new Error('ZIP attachment is missing or has the wrong size');
       const folderId = attachment.folderId ? folderIds.get(attachment.folderId) : null;
       if (attachment.folderId && !folderId) throw new Error('ZIP attachment folder is missing');
-      const blob = await entry.getData(new BlobWriter(attachment.mime));
+      const blob = await readBoundedZipBlob(entry, attachment.size, attachment.mime);
+      if (blob.size !== attachment.size) throw new Error('ZIP attachment has the wrong size');
       const created = await repository.addAttachment(vault.id, folderId ?? null, blob, attachment.name, attachment.recording);
       if (created.path !== attachment.path) throw new Error('ZIP attachment path is inconsistent');
       attachmentIds.set(attachment.id, created.id);
@@ -193,7 +254,7 @@ export async function importVaultZip(repository: VaultRepository, archive: Blob)
     for (const descriptor of manifest.revisions ?? []) {
       const entry = byName.get(descriptor.entry);
       if (!entry?.getData || entry.uncompressedSize > MAX_REVISION_BYTES) throw new Error('ZIP revision is missing or too large');
-      const source = revisionSchema.parse(JSON.parse(await entry.getData(new TextWriter())));
+      const source = revisionSchema.parse(JSON.parse(await readBoundedZipText(entry, MAX_REVISION_BYTES)));
       if (source.id !== descriptor.id || source.noteId !== descriptor.noteId || await checksumMarkdown(source.markdown) !== source.checksum) throw new Error('ZIP revision failed validation');
       const noteId = noteIds.get(source.noteId);
       if (!noteId) throw new Error('ZIP revision note is missing');

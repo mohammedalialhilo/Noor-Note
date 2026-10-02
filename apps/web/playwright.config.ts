@@ -8,6 +8,7 @@ export default defineConfig({
   use: {
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:3000',
+    storageState: { cookies: [], origins: [{ origin: 'http://127.0.0.1:3000', localStorage: [{ name: 'noor-note:onboarding:v1', value: 'complete' }] }] },
     trace: 'retain-on-failure',
   },
   webServer: {

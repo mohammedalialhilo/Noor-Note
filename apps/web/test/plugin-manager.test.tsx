@@ -46,7 +46,7 @@ describe('Plugin Manager', () => {
       expect(await screen.findByText('Enabled')).toBeTruthy();
       await waitFor(() => expect((screen.getByRole('button', { name: 'Uninstall' }) as HTMLButtonElement).disabled).toBe(false));
       fireEvent.click(screen.getByRole('button', { name: 'Uninstall' }));
-      await waitFor(() => expect(screen.getByText('No plugins installed.')).toBeTruthy());
+      await waitFor(() => expect(screen.getByText(/No plugins installed\. Choose a local bundle/u)).toBeTruthy());
     } finally { host.stop(); }
   });
 

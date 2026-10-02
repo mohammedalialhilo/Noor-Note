@@ -14,6 +14,8 @@ const migrationFiles = [
   '202609300002_noor_publishing.sql',
   '202609300003_noor_private_shares.sql',
   '202610010001_noor_database_security.sql',
+  '202610020001_noor_backups.sql',
+  '202610020002_noor_notifications.sql',
 ];
 
 describe('Supabase database security', () => {
@@ -112,6 +114,7 @@ describe('Supabase database security', () => {
         const invite = await rpc('noor_invite_vault_member', [vault, 'editor@example.test', 'editor']);
         await expect(rpc('noor_add_vault_member', [vault, 'viewer@example.test'])).rejects.toThrow();
         await asUser(editor, async () => {
+          expect((await db.query<{ read_at: string | null }>('select read_at from public.noor_notifications where kind=$1', ['collaboration_invite'])).rows).toEqual([{ read_at: null }]);
           await rpc('noor_respond_vault_invite', [(invite.rows[0] as { result: string }).result, true]);
         });
       });
@@ -122,6 +125,32 @@ describe('Supabase database security', () => {
         expect((await db.query('select id from public.noor_sync_vaults')).rows).toHaveLength(1);
         await expect(push(vault, id())).rejects.toThrow();
       });
+      await asUser(editor, async () => {
+        const rows = await db.query<{ kind: string; title: string; read_at: string | null }>('select kind,title,read_at from public.noor_notifications');
+        expect(rows.rows.some((row) => row.kind === 'collaboration_invite' && row.title === 'Invitation accepted' && row.read_at !== null)).toBe(true);
+        await db.query('update public.noor_notifications set read_at=null where kind=$1', ['collaboration_invite']);
+        expect((await db.query<{ read_at: string | null }>('select read_at from public.noor_notifications where kind=$1', ['collaboration_invite'])).rows[0]?.read_at).toBeNull();
+        await expect(db.query('insert into public.noor_notifications(recipient_id,kind,source_id,title,body,target_kind) values($1,$2,$3,$4,$5,$6)',
+          [editor, 'mention', id(), 'Forged', '', 'settings'])).rejects.toThrow();
+      });
+      await asUser(other, async () => {
+        expect((await db.query('select id from public.noor_notifications')).rows).toHaveLength(0);
+        expect((await db.query('update public.noor_notifications set read_at=now() returning id')).rows).toHaveLength(0);
+      });
+      const backupPath = `${owner}/${id()}/manifest.json`;
+      await asUser(owner, async () => {
+        await db.query('insert into storage.objects(bucket_id,name) values($1,$2)', ['noor-note-backups', backupPath]);
+        expect((await db.query('select name from storage.objects where bucket_id=$1', ['noor-note-backups'])).rows).toHaveLength(1);
+      });
+      expect((await db.query<{ public: boolean }>('select public from storage.buckets where id=$1', ['noor-note-backups'])).rows[0]?.public).toBe(false);
+      await asUser(other, async () => {
+        expect((await db.query('select name from storage.objects where bucket_id=$1', ['noor-note-backups'])).rows).toHaveLength(0);
+        await expect(db.query('insert into storage.objects(bucket_id,name) values($1,$2)', ['noor-note-backups', backupPath])).rejects.toThrow();
+        expect((await db.query('delete from storage.objects where name=$1 returning name', [backupPath])).rows).toHaveLength(0);
+      });
+      await asAnon(async () => {
+        expect((await db.query('select name from storage.objects where bucket_id=$1', ['noor-note-backups'])).rows).toHaveLength(0);
+      });
       await db.query('insert into public.noor_vault_members(vault_id,user_id,role) values($1,$2,$3),($1,$4,$5)',
         [vault, commenter, 'commenter', viewer, 'viewer']);
       await asUser(viewer, async () => {
@@ -131,19 +160,30 @@ describe('Supabase database security', () => {
         await expect(rpc('noor_create_comment_thread', [vault, 'note', note, null, 'No'])).rejects.toThrow();
         await expect(rpc('noor_change_vault_member_role', [vault, editor, 'viewer'])).rejects.toThrow();
       });
+      let threadId = '';
       await asUser(commenter, async () => {
         await expect(push(vault, id())).rejects.toThrow();
         await expect(rpc('noor_remove_vault_member', [vault, editor])).rejects.toThrow();
-        await rpc('noor_create_comment_thread', [vault, 'note', note, null, 'Comment']);
+        const created = await rpc('noor_create_comment_thread', [vault, 'note', note, null, 'Comment']);
+        threadId = (created.rows[0] as { result: string }).result;
       });
       await asUser(editor, async () => {
+        await rpc('noor_reply_comment', [threadId, 'Reply @viewer@example.test']);
+        const beforeNotifications = (await db.query<{ count: number }>('select count(*)::int as count from public.noor_notifications')).rows[0]?.count;
         await push(vault, id());
+        expect((await db.query<{ count: number }>('select count(*)::int as count from public.noor_notifications')).rows[0]?.count).toBe(beforeNotifications);
         await expect(rpc('noor_change_vault_member_role', [vault, commenter, 'editor'])).rejects.toThrow();
         await expect(rpc('noor_remove_vault_member', [vault, commenter])).rejects.toThrow();
         await expect(rpc('noor_invite_vault_member', [vault, 'other@example.test', 'viewer'])).rejects.toThrow();
         expect((await db.query('select id from public.noor_sync_vaults')).rows).toHaveLength(1);
         expect((await db.query('select id from public.noor_sync_vaults where id=$1', [otherVault])).rows).toHaveLength(0);
         await expect(db.query('update public.noor_sync_records set checksum=$1 where vault_id=$2', ['b'.repeat(64), vault])).rejects.toThrow();
+      });
+      await asUser(commenter, async () => {
+        expect((await db.query<{ kind: string }>('select kind from public.noor_notifications where kind=$1', ['comment_reply'])).rows).toHaveLength(1);
+      });
+      await asUser(viewer, async () => {
+        expect((await db.query<{ kind: string }>('select kind from public.noor_notifications where kind=$1', ['mention'])).rows).toHaveLength(1);
       });
 
       const outsiderEnvelope = id();
@@ -160,11 +200,19 @@ describe('Supabase database security', () => {
         expect((await db.query('select * from public.noor_vault_key_envelopes')).rows).toHaveLength(1);
       });
 
+      await asUser(owner, async () => {
+        await rpc('noor_change_vault_member_role', [vault, viewer, 'commenter']);
+      });
+      await asUser(viewer, async () => {
+        const rows = await db.query<{ body: string }>('select body from public.noor_notifications where kind=$1', ['share_changed']);
+        expect(rows.rows).toEqual([{ body: 'Your role in a shared vault is now commenter.' }]);
+      });
       await asUser(owner, async () => { await rpc('noor_remove_vault_member', [vault, viewer]); });
       await asUser(viewer, async () => {
         expect((await db.query('select * from public.noor_sync_records')).rows).toHaveLength(0);
         expect((await db.query('select * from storage.objects where bucket_id=$1', ['noor-note-attachments'])).rows).toHaveLength(0);
         await expect(push(vault, id())).rejects.toThrow();
+        expect((await db.query<{ kind: string }>('select kind from public.noor_notifications where kind=$1', ['share_changed'])).rows).toHaveLength(1);
       });
       await db.query('delete from auth.users where id=$1', [commenter]);
       await asUser(commenter, async () => {
@@ -178,6 +226,9 @@ describe('Supabase database security', () => {
       await asUser(editor, async () => {
         expect((await db.query('select * from public.noor_sync_records')).rows).toHaveLength(0);
         await expect(push(vault, id())).rejects.toThrow();
+      });
+      await asUser(commenter, async () => {
+        await expect(db.query('insert into storage.objects(bucket_id,name) values($1,$2)', ['noor-note-backups', `${commenter}/${id()}/manifest.json`])).rejects.toThrow();
       });
 
       const share = await asUser(owner, () => rpc('noor_create_private_share',

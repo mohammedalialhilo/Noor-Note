@@ -4,7 +4,16 @@
 .back, .mobileMenu { border: 0; background: transparent; color: var(--nn-text-soft); display: inline-flex; align-items: center; gap: 7px; border-radius: 6px; padding: 7px 8px; font-size: 12px; }
 .back:hover, .mobileMenu:hover { background: var(--nn-surface-hover); }
 .mobileMenu { display: none; }
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: calc(100% - 74px); }
+.categoryNav { display: flex; flex-direction: column; gap: 2px; padding: 24px 10px 40px; border-right: 1px solid var(--nn-border-soft); }
+.categoryNav button { width: 100%; padding: 10px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--nn-text-soft); text-align: left; font-size: 12px; cursor: pointer; }
+.categoryNav button:hover, .categoryNav .selectedCategory { background: var(--nn-surface-hover); color: var(--nn-text); }
+.categoryNav button:focus-visible { outline: 2px solid var(--nn-accent); outline-offset: -2px; }
 .content { width: min(800px, 100%); margin: 0 auto; padding: 58px 34px 90px; }
+.editorOptions { display: grid; gap: 18px; max-width: 360px; }
+.editorOptions > label { display: flex; align-items: center; gap: 9px; color: var(--nn-text-soft); font-size: 12px; }
+.editorOptions > label:has(input[type="range"]) { display: grid; grid-template-columns: 1fr auto; }
+.editorOptions input[type="range"] { grid-column: 1 / -1; width: 100%; }
 .eyebrow { color: var(--nn-gold-muted); font-size: 10px; letter-spacing: 1.6px; font-weight: 800; }
 .content h1 { margin: 12px 0 10px; font-family: Georgia, 'Times New Roman', serif; font-size: 46px; letter-spacing: -1.3px; line-height: 1.1; }
 .intro { margin: 0 0 36px; font-size: 13px; color: var(--nn-text-muted); }
@@ -28,4 +37,5 @@
 .message { padding: 11px 13px; margin: 0 0 18px; border: 1px solid var(--nn-border); border-radius: 7px; background: var(--nn-accent-soft); color: var(--nn-text-soft); font-size: 12px; }
 .dialogForm { display: grid; gap: 9px; margin-top: 18px; }.dialogForm label { font-size: 12px; color: var(--nn-text-soft); font-weight: 700; }.dialogForm input { min-height: 40px; border: 1px solid var(--nn-border); border-radius: 7px; padding: 0 10px; color: var(--nn-text); background: var(--nn-surface); }.dialogForm .actions { justify-content: flex-end; }
 @media (max-width: 900px) { .mobileMenu { display: inline-flex; }.topbar { padding: 0 18px; } }
+@media (max-width: 760px) { .layout { display: block; }.categoryNav { flex-direction: row; overflow-x: auto; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--nn-border-soft); }.categoryNav button { width: auto; flex: 0 0 auto; white-space: nowrap; } }
 @media (max-width: 640px) { .content { padding: 42px 20px 85px; }.content h1 { font-size: 38px; }.card { padding: 23px 19px; }.topbar > span { display: none; } }

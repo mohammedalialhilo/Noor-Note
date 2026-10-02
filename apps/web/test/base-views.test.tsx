@@ -15,6 +15,13 @@ async function fixture(): Promise<NoteEntry> {
 }
 
 describe('Base views', () => {
+  it('opens the Base query from an empty result', () => {
+    const onEditQuery = vi.fn();
+    render(<BaseViewPanel notes={[]} view={newBaseView('table')} fields={['title']} folders={[]} attachments={[]} repository={null} onOpen={vi.fn()} onPatchView={vi.fn(async () => undefined)} onEdit={vi.fn(async () => true)} onMoveGroup={vi.fn(async () => true)} onBulkEdit={vi.fn(async () => true)} onBulkTrash={vi.fn(async () => true)} onEditQuery={onEditQuery} />);
+    expect(screen.getByText('No notes match this view')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Base query' }));
+    expect(onEditQuery).toHaveBeenCalledOnce();
+  });
   it('renders all nine views from the same note summary', async () => {
     const note = await fixture();
     for (const kind of ['table', 'list', 'cards', 'gallery', 'kanban', 'calendar', 'map', 'timeline', 'gantt'] as const) {

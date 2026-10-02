@@ -94,7 +94,7 @@ export function LinkInspector({ note, notes, repository, onSelect, onCreateMissi
     {!allNotes && !error && <p className={styles.empty}>Loading link details{loadedCount ? ` (${loadedCount} of ${notes.length} notes)` : ''}…</p>}
     {allNotes && <>
       <section><h3>Outgoing links <span>{outgoing.length}</span></h3>{outgoing.length ? <ul>{outgoing.map((item) => linkRow(item, 'out'))}</ul> : <p className={styles.empty}>Add a wiki or local Markdown link to connect notes.</p>}</section>
-      <section><h3>Backlinks <span>{backlinks.length}</span></h3>{backlinks.length ? <ul>{backlinks.map((item) => linkRow(item, 'in'))}</ul> : <p className={styles.empty}>Other notes that link here appear here.</p>}</section>
+      <section><h3>Backlinks <span>{backlinks.length}</span></h3>{backlinks.length ? <ul>{backlinks.map((item) => linkRow(item, 'in'))}</ul> : <p className={styles.empty}>No notes link here yet. Add a wiki link to this note from another note to see it here.</p>}</section>
       <section><h3>Unlinked mentions <span>{mentions.length}</span></h3>{mentions.length ? <ul>{mentions.map((mention) => <li key={oneKey(mention)} className={styles.row}><strong>{mention.sourceTitle || 'Untitled note'}</strong><small>Line {mention.line}{mention.headingContext ? ` · ${mention.headingContext}` : ''}</small><p>{mention.preview}</p><div className={styles.actions}>{!readOnly && <button type="button" onClick={() => { void convert(mention); }}>Convert to link</button>}<button type="button" onClick={() => remember(oneKey(mention))}>Ignore</button><button type="button" onClick={() => remember(sourceKey(mention))}>Ignore all from note</button></div></li>)}</ul> : <p className={styles.empty}>No unlinked mentions found.</p>}</section>
     </>}
   </div>;
